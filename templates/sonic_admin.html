@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <title>Sonic Admin Panel</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- AdminLTE / Bootstrap / OverlayScrollbars CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/@fontsource/source-sans-3@latest/index.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/overlayscrollbars@2.10.1/styles/overlaysscrollbars.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <!-- AdminLTE core CSS -->
+    <link rel="stylesheet" href="/static/dist/css/adminlte.css" />
+
+    <!-- Optional Custom Styles -->
+    <style>
+      /* Body background: slightly more navy-leaning blue */
+      body {
+        background-color: #AEC4E6 !important;
+      }
+      /* Sidebar background: lighter grey */
+      .app-sidebar {
+        background-color: #EEEEEE !important;
+      }
+      /* Header (Navbar) background: a bit deeper blue */
+      .app-header.navbar {
+        background-color: #7EA6DE !important;
+      }
+      /* Make the hamburger icon larger */
+      .navbar .nav-link i.bi-list {
+        font-size: 1.5rem !important;
+      }
+      /* Sidebar text color and hover states */
+      .app-sidebar .nav-link {
+        color: #06283D !important;
+      }
+      .app-sidebar .nav-link:hover {
+        background-color: #CFCFCF !important;
+      }
+      .sidebar-brand .brand-text {
+        color: #06283D !important;
+      }
+      .brand-image {
+        width: 40px;
+        height: 40px;
+        object-fit: cover;
+      }
+    </style>
+  </head>
+
+  <body class="layout-fixed sidebar-expand-lg">
+    <div class="app-wrapper">
+      <!-- Header -->
+      <nav class="app-header navbar navbar-expand">
+        <div class="container-fluid">
+          <!-- Left side (Sidebar toggle + Home link) -->
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <a class="nav-link" data-lte-toggle="sidebar" href="#" role="button">
+                <i class="bi bi-list"></i>
+              </a>
+            </li>
+            <li class="nav-item d-none d-md-block">
+              <a href="#" class="nav-link" style="color: #06283D;">Home</a>
+            </li>
+          </ul>
+
+          <!-- Right side (User menu, etc.) -->
+          <ul class="navbar-nav ms-auto">
+            <!-- Insert user-menu items here if needed -->
+          </ul>
+        </div>
+      </nav>
+      <!-- End Header -->
+
+      <!-- Sidebar -->
+      <aside class="app-sidebar shadow" data-bs-theme="dark">
+        <div class="sidebar-brand">
+          <a href="#" class="brand-link d-flex align-items-center">
+            <!-- Example: Sonic PNG logo -->
+            <img
+              src="/static/images/sonic.png"
+              alt="Sonic Logo"
+              class="brand-image rounded-circle shadow"
+            />
+            <span class="brand-text fw-light ms-2">Sonic Admin</span>
+          </a>
+        </div>
+        <div class="sidebar-wrapper">
+          <nav class="mt-2">
+            <ul
+              class="nav sidebar-menu flex-column"
+              data-lte-toggle="treeview"
+              role="menu"
+              data-accordion="false"
+            >
+              <li class="nav-item">
+                <a href="{{ url_for('positions') }}" class="nav-link">
+                  <i class="nav-icon bi bi-briefcase-fill"></i>
+                  <p>Positions</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="{{ url_for('prices') }}" class="nav-link">
+                  <i class="nav-icon bi bi-currency-bitcoin"></i>
+                  <p>Prices</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="{{ url_for('heat') }}" class="nav-link">
+                  <i class="nav-icon bi bi-fire"></i>
+                  <p>Heat</p>
+                </a>
+              </li>
+                <li class="nav-item">
+                  <a href="{{ url_for('exchanges') }}" class="nav-link">
+                    <i class="nav-icon bi bi-bell"></i>
+                    <p>Exchanges</p>
+                  </a>
+                </li>
+              <li class="nav-item">
+                <a href="{{ url_for('alerts') }}" class="nav-link">
+                  <i class="nav-icon bi bi-bell"></i>
+                  <p>Alerts</p>
+                </a>
+              </li>
+              <li class="nav-item">
+                <a href="{{ url_for('system_options') }}" class="nav-link">
+                  <i class="nav-icon bi bi-gear-fill"></i>
+                  <p>System Config</p>
+                </a>
+              </li>
+              <!-- NEW: Database Viewer link -->
+              <li class="nav-item">
+                <a href="{{ url_for('database_viewer') }}" class="nav-link">
+                  <i class="nav-icon bi bi-table"></i>
+                  <p>Database Viewer</p>
+                </a>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      </aside>
+      <!-- End Sidebar -->
+
+      <!-- Main Content -->
+      <main class="app-main">
+        <div class="app-content-header">
+          <div class="container-fluid">
+            <!-- Optional page title here -->
+          </div>
+        </div>
+        <div class="app-content">
+          <div class="container-fluid">
+            {% block content %}
+            <!-- Child templates will override this block -->
+            {% endblock content %}
+          </div>
+        </div>
+      </main>
+      <!-- End Main Content -->
+
+      <!-- Footer -->
+      <footer class="app-footer">
+        <div class="float-end d-none d-sm-inline" style="color: #06283D;">Anything you want</div>
+        <strong style="color: #06283D;">
+          Copyright &copy; 2024
+          <a href="https://adminlte.io" class="text-decoration-none" style="color: #03263b;">
+            AdminLTE.io
+          </a>.
+        </strong>
+        <span style="color: #06283D;">All rights reserved.</span>
+      </footer>
+      <!-- End Footer -->
+    </div>
+    <!-- End .app-wrapper -->
+
+    <!-- Required JavaScript (OverlayScrollbars, Popper, Bootstrap, AdminLTE) -->
+    <script
+      src="https://cdn.jsdelivr.net/npm/overlaysscrollbars@2.10.1/browser/overlaysscrollbars.browser.es6.min.js"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js"
+    ></script>
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js"
+    ></script>
+    <script src="/static/dist/js/adminlte.js"></script>
+  </body>
+</html>

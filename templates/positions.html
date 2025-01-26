@@ -1,0 +1,460 @@
+{% extends "sonic_admin.html" %}
+{% block content %}
+
+<style>
+  body {
+    background-color: #a9c6e8;
+  }
+  /* Light green header (old color: #e5ffe5) => replaced with #e5d5ff => now #0066cc
+     We'll keep the old code commented for reference. */
+  .header-light-green {
+    /* background-color: #e5ffe5 !important; old color */
+    /* background-color: #e5d5ff !important; replaced pastel purple */
+    background-color: #0066cc !important; /* new requested color */
+    color: #ffffff !important;           /* white text in header */
+  }
+  /* Light grey body (#eeeeee) */
+  .body-light-grey {
+    background-color: #eeeeee !important;
+  }
+</style>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h2 class="text-dark">Positions</h2>
+  <span style="font-size: 2rem;">📊</span>
+</div>
+
+<div class="card" style="border-radius:10px;">
+  <div class="card-body p-0">
+    <style>
+      thead th {
+        /* background-color: #e5d5ff !important; old pastel purple */
+        background-color: #3366cc !important; /* new requested color */
+        color: #ffffff !important;           /* white text */
+        border: 2px solid #ccc;
+      }
+      tfoot td {
+        /* background-color: #e5d5ff !important; old pastel purple */
+        background-color: #3366cc !important; /* new requested color */
+        color: #ffffff !important;           /* white text */
+        border: 2px solid #ccc;
+        font-weight: bold;
+      }
+      tbody td {
+        border: 1px solid #ddd;
+        background-color: #fff;
+      }
+      thead th,
+      tbody td,
+      tfoot td {
+        text-align: center;
+        vertical-align: middle;
+        padding: 8px;
+        font-size: 1.2rem; /* from previous update */
+      }
+    </style>
+
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>📊 Asset</th>
+          <th>🔖 Type</th>
+          <th>💰 Collateral</th>
+          <th>📈 Value</th>
+          <th>📏 Size</th>
+          <th>⚙️ Leverage</th>
+          <th>📉 Travel %</th>
+          <th>🔥 Heat Index</th>
+          <th>💧 Liq Distance</th>
+          <th>👜 Wallet</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pos in positions %}
+        <tr>
+          <td>
+            {% if pos.asset_type in ["BTC", "Bitcoin"] %}
+              <img src="/static/images/btc_logo.png" alt="BTC"
+                   style="width:35px; height:35px; margin-right:5px;">
+            {% elif pos.asset_type in ["ETH", "Ethereum"] %}
+              <img src="/static/images/eth_logo.png" alt="ETH"
+                   style="width:35px; height:35px; margin-right:5px;">
+            {% elif pos.asset_type in ["SOL", "Solana"] %}
+              <img src="/static/images/sol_logo.png" alt="SOL"
+                   style="width:35px; height:35px; margin-right:5px;">
+            {% endif %}
+            <!-- Removed pos.asset_type text -->
+          </td>
+          <td><b>{{ pos.position_type }}</b></td>
+          <td class="{{ pos.collateral_status }}">
+            <span id="span-collateral-{{ pos.id }}">{{ "{:,.2f}".format(pos.collateral) }}</span>
+            <input type="number" step="0.01" class="form-control d-none"
+                   id="edit-collateral-{{ pos.id }}" value="{{ pos.collateral }}">
+          </td>
+          <td class="{{ pos.value_status }}">
+            {{ "{:,.2f}".format(pos.value) }}
+          </td>
+          <td class="{{ pos.size_status }}">
+            <span id="span-size-{{ pos.id }}">{{ "{:,.2f}".format(pos.size) }}</span>
+            <input type="number" step="0.01" class="form-control d-none"
+                   id="edit-size-{{ pos.id }}" value="{{ pos.size }}">
+          </td>
+          <td>{{ "{:,.2f}".format(pos.leverage) }}</td>
+          <td class="{{ pos.current_travel_percent_status }}">
+            {% if pos.current_travel_percent is not none %}
+              {{ "{:,.2f}".format(pos.current_travel_percent) }}%
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td class="{{ pos.heat_index_status }}">
+            {% if pos.heat_index is not none %}
+              {{ "{:,.2f}".format(pos.heat_index) }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            {% if pos.liquidation_distance is not none %}
+              {{ "{:,.2f}".format(pos.liquidation_distance) }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            {% if pos.wallet %}
+              <img
+                src="/static/images/{{ pos.wallet.image_filename }}"
+                alt="{{ pos.wallet.name }}"
+                style="width:35px; height:35px; margin-right:5px;">
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            <!-- Edit Btn -->
+            <button type="button" class="btn btn-sm btn-primary"
+                    onclick="enableEdit('{{ pos.id }}')"
+                    id="edit-btn-{{ pos.id }}">
+              Edit
+            </button>
+            <!-- Hidden form -->
+            <form method="POST"
+                  action="{{ url_for('edit_position', position_id=pos.id) }}"
+                  id="edit-form-{{ pos.id }}"
+                  class="d-none"
+                  style="display:inline;">
+              <input type="hidden" name="collateral"
+                     id="hidden-collateral-{{ pos.id }}"
+                     value="{{ pos.collateral }}">
+              <input type="hidden" name="size"
+                     id="hidden-size-{{ pos.id }}"
+                     value="{{ pos.size }}">
+              <button type="submit" class="btn btn-sm btn-success">Save</button>
+              <button type="button" class="btn btn-sm btn-secondary"
+                      onclick="cancelEdit('{{ pos.id }}')">
+                Cancel
+              </button>
+            </form>
+            <!-- Delete Btn -->
+            <form method="POST"
+                  action="/delete-position/{{ pos.id }}"
+                  style="display:inline;">
+              <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <!-- Keep ONLY the final row. Remove others. -->
+        <!-- The final row presumably is the one labeled 'TOTALS' -->
+        <tr>
+          <td>TOTALS</td>
+          <td></td>
+          <td>{{ "{:,.2f}".format(totals.get("total_collateral", 0)) }}</td>
+          <td>{{ "{:,.2f}".format(totals.get("total_value", 0)) }}</td>
+          <td>{{ "{:,.2f}".format(totals.get("total_size", 0)) }}</td>
+          <td>{{ "{:,.2f}".format(totals.get("avg_leverage", 0)) }}</td>
+          <td>{{ "{:,.2f}".format(totals.get("avg_travel_percent", 0)) }}%</td>
+          <td>{{ "{:,.2f}".format(totals.get("avg_heat_index", 0)) }}</td>
+          <td></td>
+          <td></td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+
+<!-- Add/Import Card -->
+<div class="card mt-3">
+  <div class="card-header fw-bold header-light-green">
+    Add New Position / Import JSON or TXT
+  </div>
+  <div class="card-body body-light-grey">
+    <div class="row g-3">
+      <!-- Left: Add New Position -->
+      <div class="col-md-6">
+        <form method="POST" action="{{ url_for('positions') }}">
+          <div class="row g-3">
+            <!-- Asset -->
+            <div class="col-md-6">
+              <label for="asset_type" class="form-label fw-bold">
+                Asset <span class="ms-1">💰</span>
+              </label>
+              <select class="form-select" id="asset_type" name="asset_type" required>
+                <option value="BTC">BTC</option>
+                <option value="ETH">ETH</option>
+                <option value="SOL">SOL</option>
+              </select>
+            </div>
+            <!-- Position Type -->
+            <div class="col-md-6">
+              <label for="position_type" class="form-label fw-bold">
+                Position Type <span class="ms-1">🔧</span>
+              </label>
+              <select class="form-select" id="position_type" name="position_type" required>
+                <option value="Long">Long</option>
+                <option value="Short">Short</option>
+              </select>
+            </div>
+            <!-- Collateral -->
+            <div class="col-md-6">
+              <label for="collateral" class="form-label fw-bold">
+                Collateral <span class="ms-1">🔒</span>
+              </label>
+              <input type="number" step="0.01" class="form-control"
+                     id="collateral" name="collateral" required>
+            </div>
+            <!-- Size -->
+            <div class="col-md-6">
+              <label for="size" class="form-label fw-bold">
+                Size <span class="ms-1">📏</span>
+              </label>
+              <input type="number" step="0.01" class="form-control"
+                     id="size" name="size" required>
+            </div>
+            <!-- Entry Price -->
+            <div class="col-md-6">
+              <label for="entry_price" class="form-label fw-bold">
+                Entry Price <span class="ms-1">💲</span>
+              </label>
+              <input type="number" step="0.01" class="form-control"
+                     id="entry_price" name="entry_price" required>
+            </div>
+            <!-- Liquidation Price -->
+            <div class="col-md-6">
+              <label for="liquidation_price" class="form-label fw-bold">
+                Liquidation Price <span class="ms-1">⚠️</span>
+              </label>
+              <input type="number" step="0.01" class="form-control"
+                     id="liquidation_price" name="liquidation_price" required>
+            </div>
+            <div class="col-md-12 text-end">
+              <button type="submit" class="btn btn-primary">
+                Add Position
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      <!-- Right: Upload, Delete All, and [NEW] Update Jupiter+Prices -->
+      <div class="col-md-6">
+        <label for="file-input" class="form-label fw-bold">
+          Import from JSON or TXT <span class="ms-1">📄</span>
+        </label>
+        <div id="drop-area"
+             class="border border-primary rounded p-3 text-center"
+             style="min-height:120px;">
+          <p class="mb-2">
+            Drag &amp; drop a JSON/TXT file here or click to select
+          </p>
+          <input type="file" id="file-input"
+                 style="display:none;"
+                 accept=".json,.txt">
+          <button type="button" class="btn btn-secondary"
+                  onclick="document.getElementById('file-input').click();">
+            Browse
+          </button>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mt-2">
+          <button type="button" id="upload-btn" class="btn btn-success" disabled>
+            Upload Positions
+          </button>
+
+          <!-- REPLACED old text button with NO-TEXT Jupiter image -->
+          <button type="button" id="update-jupiter-all-btn"
+                  class="btn p-0 border-0"
+                  style="background:none;">
+            <img src="/static/images/jupiter.jpg"
+                 alt="Update Jupiter"
+                 style="width:50px; height:auto;">
+          </button>
+
+          <form method="POST" action="/delete-all-positions" style="display:inline;">
+            <button type="submit" class="btn btn-danger">Delete All</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New Card: Check Alerts -->
+<div class="card mt-3">
+  <div class="card-header fw-bold header-light-green">
+    Check Alerts Right Now
+  </div>
+  <div class="card-body body-light-grey">
+    <button type="button" class="btn btn-info" id="checkAlertsBtn">
+      Check Alerts
+    </button>
+  </div>
+</div>
+
+<script>
+// Inline Edit
+function enableEdit(posId) {
+  document.getElementById(`edit-btn-${posId}`).classList.add("d-none");
+  document.getElementById(`edit-form-${posId}`).classList.remove("d-none");
+  document.getElementById(`span-collateral-${posId}`).classList.add("d-none");
+  document.getElementById(`edit-collateral-${posId}`).classList.remove("d-none");
+  document.getElementById(`span-size-${posId}`).classList.add("d-none");
+  document.getElementById(`edit-size-${posId}`).classList.remove("d-none");
+}
+
+function cancelEdit(posId) {
+  document.getElementById(`edit-btn-${posId}`).classList.remove("d-none");
+  document.getElementById(`edit-form-${posId}`).classList.add("d-none");
+  document.getElementById(`span-collateral-${posId}`).classList.remove("d-none");
+  document.getElementById(`edit-collateral-${posId}`).classList.add("d-none");
+  document.getElementById(`span-size-${posId}`).classList.remove("d-none");
+  document.getElementById(`edit-size-${posId}`).classList.add("d-none");
+}
+
+// Sync form fields for editing
+document.querySelectorAll('input[id^="edit-collateral-"]').forEach((el) => {
+  el.addEventListener("input", function() {
+    const posId = this.id.split("-")[2];
+    document.getElementById(`hidden-collateral-${posId}`).value = this.value;
+  });
+});
+document.querySelectorAll('input[id^="edit-size-"]').forEach((el) => {
+  el.addEventListener("input", function() {
+    const posId = this.id.split("-")[2];
+    document.getElementById(`hidden-size-${posId}`).value = this.value;
+  });
+});
+
+// Drag & Drop + File Upload
+const dropArea = document.getElementById('drop-area');
+const fileInput = document.getElementById('file-input');
+const uploadBtn = document.getElementById('upload-btn');
+let selectedFile = null;
+
+dropArea.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  dropArea.classList.add('bg-light');
+});
+dropArea.addEventListener('dragleave', () => {
+  dropArea.classList.remove('bg-light');
+});
+dropArea.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropArea.classList.remove('bg-light');
+  selectedFile = e.dataTransfer.files[0];
+  if (selectedFile && (
+    selectedFile.name.toLowerCase().endsWith('.json') ||
+    selectedFile.name.toLowerCase().endsWith('.txt')
+  )) {
+    uploadBtn.disabled = false;
+  } else {
+    alert('Please drop a valid JSON or TXT file.');
+    selectedFile = null;
+    uploadBtn.disabled = true;
+  }
+});
+dropArea.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  selectedFile = fileInput.files[0];
+  if (selectedFile && (
+    selectedFile.name.toLowerCase().endsWith('.json') ||
+    selectedFile.name.toLowerCase().endsWith('.txt')
+  )) {
+    uploadBtn.disabled = false;
+  } else {
+    alert('Please select a valid JSON or TXT file.');
+    selectedFile = null;
+    uploadBtn.disabled = true;
+  }
+});
+
+uploadBtn.addEventListener('click', () => {
+  if (!selectedFile) return;
+  const formData = new FormData();
+  formData.append('file', selectedFile);
+
+  fetch('/upload-positions', {
+    method: 'POST',
+    body: formData
+  })
+    .then(async (response) => {
+      if (!response.ok) {
+        let msg;
+        try {
+          let data = await response.json();
+          msg = data.error || JSON.stringify(data);
+        } catch(e) {
+          msg = "unknown error";
+        }
+        alert(`Failed to import positions.\n${msg}`);
+      } else {
+        alert('Positions imported successfully!');
+        location.reload();
+      }
+    })
+    .catch((err) => {
+      console.error("Upload fetch error:", err);
+      alert('An error occurred while uploading.');
+    });
+});
+
+// NEW: Combined "Update Jupiter + Prices" when user clicks the image button
+document.getElementById('update-jupiter-all-btn').addEventListener('click', () => {
+  if (!confirm("Update Jupiter positions and prices?")) {
+    return;
+  }
+  fetch('/update_jupiter', { method: 'POST' })
+    .then((response) => response.json())
+    .then((data) => {
+      alert(data.message || "Successfully updated from Jupiter + Prices!");
+      location.reload();
+    })
+    .catch((err) => {
+      console.error("Update Jupiter fetch error:", err);
+      alert(`An error occurred: ${err}`);
+    });
+});
+
+// Check Alerts (New)
+document.getElementById("checkAlertsBtn").addEventListener("click", function() {
+  fetch("/manual-check-alerts", { method: "POST" })
+    .then(response => response.json())
+    .then(data => {
+      if (data.status === "success") {
+        alert(`Alerts checked: ${data.message}`);
+      } else {
+        alert(`Error checking alerts: ${data.message}`);
+      }
+    })
+    .catch(err => {
+      alert(`Failed to check alerts: ${err}`);
+    });
+});
+</script>
+
+{% endblock content %}

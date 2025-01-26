@@ -1,0 +1,386 @@
+{% extends "sonic_admin.html" %}
+{% block content %}
+
+{# Turn heat_data into a safe local variable "hd". #}
+{% set hd = heat_data|default({}) %}
+
+<h2 class="text-dark mb-4">Heat Report</h2>
+
+<style>
+/* Container that holds both tables side by side with no gap. */
+#heat-tables-wrapper {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 0;
+}
+
+/* SHORT TABLE + LONG TABLE: style them. */
+#short-heat, #long-heat {
+  border: 2px solid #444;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 0;
+}
+
+#short-heat {
+  border-right: 2px solid #444;
+  border-left: 2px solid #444;
+}
+
+#long-heat {
+  border-left: 2px solid #444;
+  border-right: 2px solid #444;
+}
+
+/* Light color separation, center text. */
+#short-heat td, #short-heat th,
+#long-heat td, #long-heat th {
+  border: 1px solid #ddd !important;
+  text-align: center !important;
+  padding: 6px 8px;
+  vertical-align: middle;
+  min-height: 40px;
+}
+
+/* Single top row "📉 SHORT"/"📈 LONG" with no internal cell borders. */
+.top-title-row th {
+  border: none !important;
+  font-weight: bold;
+  font-size: 1rem;
+  padding: 10px 0;
+}
+
+/* Subtle purple for totals row */
+.totals-row {
+  background-color: #f3e6ff !important;
+}
+
+/* If no data => blank row => subtle gray. */
+.no-data-row td {
+  background-color: #f0f0f0 !important;
+}
+
+/* Bluish columns for short, yellowish for long */
+.short-col { background-color: #eef6ff; }
+.long-col  { background-color: #fff8e5; }
+</style>
+
+<div id="heat-tables-wrapper">
+  <!-- SHORT TABLE -->
+  <table id="short-heat">
+    <thead>
+      <tr class="top-title-row">
+        <th colspan="7">📉 SHORT</th>
+      </tr>
+      <tr class="fw-bold">
+        <th class="short-col">📊 Asset</th>
+        <th class="short-col">💰 Collateral</th>
+        <th class="short-col">📈 Value</th>
+        <th class="short-col">⚙️ Leverage</th>
+        <th class="short-col">📉 Travel %</th>
+        <th class="short-col">🔥 Heat Index</th>
+        <th class="short-col">📏 Size</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for asset in ["BTC", "ETH", "SOL"] %}
+        {% set asset_data = hd.get(asset, {}) %}
+        {% set pos = asset_data.get('short') %}
+        {% if not pos %}
+          <tr class="no-data-row">
+            <td class="short-col" colspan="7">&nbsp;</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td class="short-col">
+              {% if pos.asset == "BTC" %}
+                <img src="/static/images/btc_logo.png" alt="BTC" style="width:20px; margin-right:5px;">
+              {% elif pos.asset == "ETH" %}
+                <img src="/static/images/eth_logo.png" alt="ETH" style="width:20px; margin-right:5px;">
+              {% elif pos.asset == "SOL" %}
+                <img src="/static/images/sol_logo.png" alt="SOL" style="width:20px; margin-right:5px;">
+              {% endif %}
+              {{ pos.asset }}
+            </td>
+            <td class="short-col">{{ "{:,}".format(pos.collateral|float|round(2)) }}</td>
+            <td class="short-col">{{ "{:,}".format(pos.value|float|round(2)) }}</td>
+            <td class="short-col">{{ pos.leverage|float|round(2) }}</td>
+            <td class="short-col">{{ pos.travel_percent|float|round(2) }}%</td>
+            <td class="short-col">{{ "{:,}".format(pos.heat_index|float|round(2)) }}</td>
+            <td class="short-col">{{ "{:,}".format(pos.size|float|round(2)) }}</td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="fw-bold totals-row">
+        {% set short_totals = hd.get('totals', {}).get('short', {}) %}
+        <td class="short-col">
+          {% if short_totals.get('asset') %}
+            {% if short_totals.asset == "BTC" %}
+              <img src="/static/images/btc_logo.png" alt="BTC" style="width:20px; margin-right:5px;">
+            {% elif short_totals.asset == "ETH" %}
+              <img src="/static/images/eth_logo.png" alt="ETH" style="width:20px; margin-right:5px;">
+            {% elif short_totals.asset == "SOL" %}
+              <img src="/static/images/sol_logo.png" alt="SOL" style="width:20px; margin-right:5px;">
+            {% endif %}
+            {{ short_totals.asset }}
+          {% else %}
+            Short
+          {% endif %}
+        </td>
+        <td class="short-col">{{ "{:,}".format(short_totals.get('collateral',0)|float|round(2)) }}</td>
+        <td class="short-col">{{ "{:,}".format(short_totals.get('value',0)|float|round(2)) }}</td>
+        <td class="short-col">{{ short_totals.get('leverage',0)|float|round(2) }}</td>
+        <td class="short-col">{{ short_totals.get('travel_percent',0)|float|round(2) }}%</td>
+        <td class="short-col">{{ "{:,}".format(short_totals.get('heat_index',0)|float|round(2)) }}</td>
+        <td class="short-col">{{ "{:,}".format(short_totals.get('size',0)|float|round(2)) }}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <!-- LONG TABLE -->
+  <table id="long-heat">
+    <thead>
+      <tr class="top-title-row">
+        <th colspan="7">📈 LONG</th>
+      </tr>
+      <tr class="fw-bold">
+        <th class="long-col">📏 Size</th>
+        <th class="long-col">🔥 Heat Index</th>
+        <th class="long-col">📉 Travel %</th>
+        <th class="long-col">⚙️ Leverage</th>
+        <th class="long-col">📈 Value</th>
+        <th class="long-col">💰 Collateral</th>
+        <th class="long-col">📊 Asset</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for asset in ["BTC", "ETH", "SOL"] %}
+        {% set asset_data = hd.get(asset, {}) %}
+        {% set pos = asset_data.get('long') %}
+        {% if not pos %}
+          <tr class="no-data-row">
+            <td class="long-col" colspan="7">&nbsp;</td>
+          </tr>
+        {% else %}
+          <tr>
+            <td class="long-col">{{ "{:,}".format(pos.size|float|round(2)) }}</td>
+            <td class="long-col">{{ "{:,}".format(pos.heat_index|float|round(2)) }}</td>
+            <td class="long-col">{{ pos.travel_percent|float|round(2) }}%</td>
+            <td class="long-col">{{ pos.leverage|float|round(2) }}</td>
+            <td class="long-col">{{ "{:,}".format(pos.value|float|round(2)) }}</td>
+            <td class="long-col">{{ "{:,}".format(pos.collateral|float|round(2)) }}</td>
+            <td class="long-col">
+              {% if pos.asset == "BTC" %}
+                <img src="/static/images/btc_logo.png" alt="BTC" style="width:20px; margin-right:5px;">
+              {% elif pos.asset == "ETH" %}
+                <img src="/static/images/eth_logo.png" alt="ETH" style="width:20px; margin-right:5px;">
+              {% elif pos.asset == "SOL" %}
+                <img src="/static/images/sol_logo.png" alt="SOL" style="width:20px; margin-right:5px;">
+              {% endif %}
+              {{ pos.asset }}
+            </td>
+          </tr>
+        {% endif %}
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr class="fw-bold totals-row">
+        {% set long_totals = hd.get('totals', {}).get('long', {}) %}
+        <td class="long-col">{{ "{:,}".format(long_totals.get('size',0)|float|round(2)) }}</td>
+        <td class="long-col">{{ "{:,}".format(long_totals.get('heat_index',0)|float|round(2)) }}</td>
+        <td class="long-col">{{ long_totals.get('travel_percent',0)|float|round(2) }}%</td>
+        <td class="long-col">{{ long_totals.get('leverage',0)|float|round(2) }}</td>
+        <td class="long-col">{{ "{:,}".format(long_totals.get('value',0)|float|round(2)) }}</td>
+        <td class="long-col">{{ "{:,}".format(long_totals.get('collateral',0)|float|round(2)) }}</td>
+        <td class="long-col">
+          {% if long_totals.get('asset') %}
+            {% if long_totals.asset == "BTC" %}
+              <img src="/static/images/btc_logo.png" alt="BTC" style="width:20px; margin-right:5px;">
+            {% elif long_totals.asset == "ETH" %}
+              <img src="/static/images/eth_logo.png" alt="ETH" style="width:20px; margin-right:5px;">
+            {% elif long_totals.asset == "SOL" %}
+              <img src="/static/images/sol_logo.png" alt="SOL" style="width:20px; margin-right:5px;">
+            {% endif %}
+            {{ long_totals.asset }}
+          {% else %}
+            Long
+          {% endif %}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+</div>
+
+<!-- CHARTS: sizeDist, levChart, assetDist -->
+{# ================== REWRITTEN CHART-LOGIC ================== #}
+{% set shortTotals = hd.get('totals', {}).get('short', {}) %}
+{% set longTotals  = hd.get('totals', {}).get('long',  {}) %}
+{% set shortSize   = shortTotals.get('size', 0)|float|round(2) %}
+{% set longSize    = longTotals.get('size',  0)|float|round(2) %}
+{% set shortLev    = shortTotals.get('leverage', 0)|float|round(2) %}
+{% set longLev     = longTotals.get('leverage',  0)|float|round(2) %}
+
+{# Overall leverage #}
+{% if shortLev>0 and longLev>0 %}
+  {% set overallLev = (shortLev + longLev)/2 %}
+{% else %}
+  {% set overallLev = shortLev + longLev %}
+{% endif %}
+{% if overallLev<0 %}
+  {% set overallLev = 0 %}
+{% endif %}
+{% if overallLev>30 %}
+  {% set overallLev = 30 %}
+{% endif %}
+
+{# For the Asset Distribution #}
+{% set btcShort = hd.get("BTC", {}).get("short", {}).get("size", 0)|float|round(2) %}
+{% set btcLong  = hd.get("BTC", {}).get("long",  {}).get("size", 0)|float|round(2) %}
+{% set ethShort = hd.get("ETH", {}).get("short", {}).get("size", 0)|float|round(2) %}
+{% set ethLong  = hd.get("ETH", {}).get("long",  {}).get("size", 0)|float|round(2) %}
+{% set solShort = hd.get("SOL", {}).get("short", {}).get("size", 0)|float|round(2) %}
+{% set solLong  = hd.get("SOL", {}).get("long",  {}).get("size", 0)|float|round(2) %}
+
+{% set btcTotal = btcShort + btcLong %}
+{% set ethTotal = ethShort + ethLong %}
+{% set solTotal = solShort + solLong %}
+
+<div class="d-flex flex-wrap justify-content-around mt-5">
+  <div style="max-width:33%;">
+    <canvas id="sizeDist"></canvas>
+  </div>
+  <div style="max-width:33%;">
+    <canvas id="levChart"></canvas>
+  </div>
+  <div style="max-width:33%;">
+    <canvas id="assetDist"></canvas>
+  </div>
+</div>
+
+<!-- Chart.js + DataLabels plugin -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+<script>
+(function() {
+  // 1) Size Distribution
+  const shortSize = {{ shortSize }};
+  const longSize  = {{ longSize }};
+  const sizeCtx   = document.getElementById('sizeDist').getContext('2d');
+  new Chart(sizeCtx, {
+    type: 'pie',
+    data: {
+      labels: ['Short', 'Long'],
+      datasets: [{
+        data: [shortSize, longSize],
+        backgroundColor: ['#f39c12','rgb(52,152,219)']
+      }]
+    },
+    plugins: [ChartDataLabels],
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: 'Size Distribution',
+          font: { size:16, weight:'bold' },
+          color: '#000'
+        },
+        legend: { position: 'bottom' },
+        datalabels: {
+          color: '#fff',
+          font: { size:14, weight:'bold' },
+          formatter: (value, ctx) => {
+            const sum = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            return sum>0 ? (value/sum*100).toFixed(1)+'%' : '0%';
+          }
+        }
+      }
+    }
+  });
+
+  // 2) Leverage
+  const shortLev  = {{ shortLev }};
+  const longLev   = {{ longLev }};
+  let overallLev  = {{ overallLev }};
+
+  const levCtx    = document.getElementById('levChart').getContext('2d');
+  const grad      = levCtx.createLinearGradient(0,0,300,0);
+  grad.addColorStop(0,'green');
+  grad.addColorStop(1,'red');
+
+  new Chart(levCtx, {
+    type: 'bar',
+    data: {
+      labels: ['Leverage'],
+      datasets: [{
+        label: 'Overall Leverage',
+        data: [overallLev],
+        backgroundColor: grad,
+        borderColor: grad,
+        borderWidth: 1
+      }]
+    },
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: 'Total Leverage',
+          font: { size:16, weight:'bold' },
+          color: '#000'
+        },
+        legend: { display:false }
+      },
+      indexAxis: 'y',
+      scales: {
+        x: { min:0, max:30, title:{ display:true, text:'Leverage (0..30x)' } },
+        y: { display:false }
+      }
+    }
+  });
+
+  // 3) Asset Distribution
+  const btcTotal = {{ btcTotal }};
+  const ethTotal = {{ ethTotal }};
+  const solTotal = {{ solTotal }};
+
+  const assetCtx = document.getElementById('assetDist').getContext('2d');
+  new Chart(assetCtx, {
+    type: 'pie',
+    data: {
+      labels: ['BTC', 'ETH', 'SOL'],
+      datasets: [{
+        data: [btcTotal, ethTotal, solTotal],
+        backgroundColor: [
+          '#F7931A', // BTC
+          '#3498db', // ETH
+          '#8e44ad'  // SOL
+        ]
+      }]
+    },
+    plugins: [ChartDataLabels],
+    options: {
+      plugins: {
+        title: {
+          display: true,
+          text: 'Asset Distribution',
+          font: { size:16, weight:'bold' },
+          color: '#000'
+        },
+        legend: { position: 'bottom' },
+        datalabels: {
+          color:'#fff',
+          font:{ size:14, weight:'bold' },
+          formatter: (value, ctx) => {
+            const sum = ctx.dataset.data.reduce((a,b)=>a+b,0);
+            return sum>0 ? (value/sum*100).toFixed(1)+'%' : '0%';
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+
+{% endblock content %}

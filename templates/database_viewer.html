@@ -1,0 +1,84 @@
+{% extends "sonic_admin.html" %}
+{% block content %}
+{% set all_tables = db_data | dictsort(by='key') %}
+
+{% set alerts_table = all_tables | selectattr("0", "equalto", "alerts") | list %}
+{% set non_alerts_tables = all_tables | rejectattr("0", "equalto", "alerts") | list %}
+
+<div class="row">
+  <div class="col-12">
+    <h1 class="mb-4">Database Viewer</h1>
+  </div>
+</div>
+
+<!-- Render non-alerts tables first -->
+{% for table_name, data in non_alerts_tables %}
+  <!-- your styling for each table/card goes here -->
+  <div class="card mb-4" style="background-color: #EEEEEE;">
+    <div class="card-header" style="background-color: #d2f4be;">
+      <h3 class="card-title" style="font-weight: bold;">{{ table_name }}</h3>
+    </div>
+    <div class="card-body" style="background-color: #EEEEEE;">
+      {% if data.rows %}
+        <div class="table-responsive">
+          <table class="table table-hover" style="background-color: #FFFFFF;">
+            <thead>
+              <tr>
+                {% for col in data.columns %}
+                  <th scope="col">{{ col }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in data.rows %}
+              <tr>
+                {% for col in data.columns %}
+                  <td>{{ row[col] }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted">No rows in <b>{{ table_name }}</b> table.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+
+<!-- Then render alerts table last -->
+{% for table_name, data in alerts_table %}
+  <div class="card mb-4" style="background-color: #EEEEEE;">
+    <div class="card-header" style="background-color: #d2f4be;">
+      <h3 class="card-title" style="font-weight: bold;">{{ table_name }}</h3>
+    </div>
+    <div class="card-body" style="background-color: #EEEEEE;">
+      {% if data.rows %}
+        <div class="table-responsive">
+          <table class="table table-hover" style="background-color: #FFFFFF;">
+            <thead>
+              <tr>
+                {% for col in data.columns %}
+                  <th scope="col">{{ col }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in data.rows %}
+              <tr>
+                {% for col in data.columns %}
+                  <td>{{ row[col] }}</td>
+                {% endfor %}
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted">No rows in <b>{{ table_name }}</b> table.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+{% endblock content %}

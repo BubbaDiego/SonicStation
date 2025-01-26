@@ -1,0 +1,85 @@
+{
+  "price_config": {
+    "assets": [
+      "BTC",
+      "ETH",
+      "SOL"
+    ],
+    "currency": "USD",
+    "cmc_api_key": "c51c0c22-1bf3-4674-86bf-36f39a912d1a"
+  },
+  "system_config": {
+    "logging_enabled": true,
+    "log_level": "DEBUG",
+    "console_output": true,
+    "log_file": "C:/WebSonic/logs/price_monitor.log",
+    "db_path": "C:/WebSonic/data/mother_brain.db",
+    "price_monitor_enabled": true,
+    "alert_monitor_enabled": true,
+    "sonic_monitor_loop_time": 300,
+    "last_price_update_time": null
+  },
+  "api_config": {
+    "coingecko_api_enabled": "ENABLE",
+    "kucoin_api_enabled": "ENABLE",
+    "coinmarketcap_api_enabled": "ENABLE",
+    "coinpaprika_api_enabled": "ENABLE",
+    "binance_api_enabled": "DISABLE",
+    "coinmarketcap_api_key": "c51c0c22-1bf3-4674-86bf-36f39a912d1a"
+  },
+  "alert_ranges": {
+    "heat_index_ranges": {
+      "low": 0.0,
+      "medium": 200.0,
+      "high": null
+    },
+    "collateral_ranges": {
+      "low": 0.0,
+      "medium": 1000.0,
+      "high": null
+    },
+    "value_ranges": {
+      "low": 0.0,
+      "medium": 2000.0,
+      "high": null
+    },
+    "size_ranges": {
+      "low": 0.0,
+      "medium": 15000.0,
+      "high": null
+    },
+    "leverage_ranges": {
+      "low": 0.0,
+      "medium": 5.0,
+      "high": null
+    },
+    "liquidation_distance_ranges": {
+      "low": 0.0,
+      "medium": 2.0,
+      "high": null
+    },
+    "travel_percent_liquid_ranges": {
+    "low": -25.0,
+    "medium": -50.0,
+    "high": -75.0
+    },
+    "travel_percent_profit_ranges": {
+    "low": 25.0,
+    "medium": 50.0,
+    "high": 75.0
+  }
+  },
+  "notification_config": {
+    "email": {
+      "smtp_server": "smtp.gmail.com",
+      "smtp_port": 587,
+      "smtp_user": "bubba.diego@gmail.com",
+      "smtp_password": "pzix taan afbe igxb",
+      "recipient_email": "bubba.diego@gmail.com"
+    },
+    "sms": {
+      "carrier_gateway": "txt.att.net",
+      "recipient_number": "6199804758"
+    }
+  }
+}
