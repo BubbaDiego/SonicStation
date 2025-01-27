@@ -2,7 +2,59 @@
 {% block content %}
 
 <style>
-  /* Card backgrounds */
+  /* The mini price panel container/card remains narrower (60%), centered */
+  .mini-price-panel.card {
+    background-color: #F0F0F0 !important;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+    margin: 0 auto; /* center horizontally */
+    width: 60%;
+    min-width: 400px;
+  }
+  /* Medium-blue header, smaller height */
+  .mini-price-panel .card-header {
+    background-color: #4da6ff !important; /* medium blue */
+    color: #fff;
+    font-weight: bold;
+    font-size: 1rem;
+    line-height: 1.5rem;
+    padding: 0.3rem 1rem;
+    text-align: center;
+  }
+
+  /* Price container with less vertical padding => reduced height */
+  .mini-price-container {
+    display: flex;
+    justify-content: space-evenly;
+    align-items: center;
+    padding: 0.5rem 0;
+    gap: 1rem;
+  }
+  .mini-price-box {
+    background-color: #fff;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding: 0.3rem 0.6rem;
+  }
+  /* Icon sizing */
+  .mini-price-box img {
+    width: 28px;
+    height: 28px;
+    margin-right: 6px;
+  }
+  .mini-price-box .mini-price-label {
+    font-size: 1.1rem;
+    color: #333;
+    margin-right: 0.5rem;
+  }
+  .mini-price-box .mini-price-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+  }
+
+  /* The rest of the alerts styling remain the same */
   .alert-box.card {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
@@ -11,50 +63,13 @@
   .alert-box .card-header {
     font-weight: bold;
   }
-
-  /* Price panel container styling */
-  .price-panel.card {
-    background-color: #F0F0F0 !important;
-    border: 2px solid #ccc;
-    border-radius: 8px;
-  }
-  .price-panel .card-header {
-    background-color: #e5ffe5 !important;
-    font-weight: bold;
-  }
-
-  /* Smaller price boxes inside the panel */
-  .mini-price-box {
-    background-color: #FFFFFF !important; /* or #f9f9f9 for subtle */
-    border: 1px solid #ccc;
-    border-radius: 6px;
-    text-align: center;
-    padding: 10px;
-  }
-  .mini-price-box img {
-    width: 24px;
-    height: 24px;
-    margin-right: 6px;
-  }
-  .mini-price-box .mini-price-value {
-    font-size: 1.25rem; /* slightly bigger text for the price */
-    font-weight: bold;
-  }
-  .mini-price-box .mini-price-label {
-    font-size: 0.9rem;
-    color: #555;
-  }
-
-  /* Table striping */
   .table-striped tbody tr:nth-of-type(odd) {
     background-color: rgba(0, 0, 0, 0.05);
   }
-  /* Title row styling */
   .title-row {
     background-color: #f0e5ff !important; /* Light purple */
     font-weight: bold;
   }
-
   .card.add-alert {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
@@ -64,55 +79,57 @@
     background-color: #e5ffe5 !important;
     font-weight: bold;
   }
+
+  /* Subtle trash icon button */
+  .delete-alert-btn {
+    background: none;
+    border: none;
+    color: #cc0000;
+    font-size: 1rem; 
+    margin: 0;
+    padding: 0;
+  }
+  .delete-alert-btn:hover {
+    color: #ff0000;
+  }
 </style>
 
-<!-- ====== SECTION 0: MINI PRICE PANEL (Above Low/Med/High) ====== -->
+<!-- ====== SECTION 0: MINI PRICE PANEL (Above the Low/Medium/High) ====== -->
 {% if mini_prices is not defined %}
   {% set mini_prices = [] %}
 {% endif %}
-<div class="card price-panel mb-4">
+<div class="card mini-price-panel mb-4">
   <div class="card-header">Market Snapshot</div>
   <div class="card-body">
-    <div class="row row-cols-1 row-cols-md-3 g-2">
-      {% for p in mini_prices %}
-      <div class="col">
-        <div class="mini-price-box h-100 d-flex flex-column align-items-center justify-content-center">
-          <!-- Icon based on asset_type -->
+    <div class="mini-price-container">
+      {% if mini_prices|length == 0 %}
+        <!-- If no mini_prices passed in, show a placeholder -->
+        <div class="mini-price-box">
+          <em>No price data</em>
+        </div>
+      {% else %}
+        {% for p in mini_prices %}
+        <div class="mini-price-box">
+          <!-- Icon -->
           {% if p.asset_type == "BTC" %}
             <img src="/static/images/btc_logo.png" alt="BTC">
+            <span class="mini-price-label">BTC</span>
           {% elif p.asset_type == "ETH" %}
             <img src="/static/images/eth_logo.png" alt="ETH">
+            <span class="mini-price-label">ETH</span>
           {% elif p.asset_type == "SOL" %}
             <img src="/static/images/sol_logo.png" alt="SOL">
+            <span class="mini-price-label">SOL</span>
+          {% else %}
+            <img src="/static/images/placeholder.png" alt="ASSET" style="width:28px; height:28px; margin-right:6px;">
+            <span class="mini-price-label">{{ p.asset_type }}</span>
           {% endif %}
 
-          <!-- Label -->
-          <div class="mini-price-label">
-            {% if p.asset_type == "BTC" %}
-              Bitcoin
-            {% elif p.asset_type == "ETH" %}
-              Ethereum
-            {% elif p.asset_type == "SOL" %}
-              Solana
-            {% else %}
-              {{ p.asset_type }}
-            {% endif %}
-          </div>
-
-          <!-- Price -->
-          <div class="mini-price-value">
+          <span class="mini-price-value">
             {{ p.current_price|round(2) }}
-          </div>
+          </span>
         </div>
-      </div>
-      {% endfor %}
-      {% if mini_prices|length == 0 %}
-        <!-- If no prices passed in, show a placeholder or nothing -->
-        <div class="col">
-          <div class="mini-price-box">
-            <em>No price data</em>
-          </div>
-        </div>
+        {% endfor %}
       {% endif %}
     </div>
   </div>
@@ -185,7 +202,7 @@
           <thead>
             <!-- Title row -->
             <tr class="title-row">
-              <th colspan="6">Active Alerts</th>
+              <th colspan="7">Active Alerts</th>  <!-- now 7 columns to accommodate "Delete" -->
             </tr>
             <tr>
               <th>Type</th>
@@ -194,6 +211,7 @@
               <th>Trigger Value</th>
               <th>Last Triggered</th>
               <th>Status</th>
+              <th style="width: 40px;">Del</th> <!-- small column for delete -->
             </tr>
           </thead>
           <tbody>
@@ -229,6 +247,18 @@
                   <span class="badge bg-warning">{{ alert.status }}</span>
                 {% endif %}
               </td>
+              <!-- Delete cell -->
+              <td>
+                <form method="POST"
+                      action="{{ url_for('delete_alert', alert_id=alert.id) }}"
+                      onsubmit="return confirm('Are you sure you want to delete this alert?');"
+                      style="display:inline;">
+                  <button type="submit" class="delete-alert-btn" title="Delete Alert">
+                    <!-- FA6 fix: "fa-solid" prefix instead of "fas" -->
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </form>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -245,7 +275,7 @@
           <thead>
             <!-- Title row with “Recent Alerts” + example pagination placeholder -->
             <tr class="title-row">
-              <th colspan="6">
+              <th colspan="7">
                 Recent Alerts
                 <nav class="float-end" style="display: inline-block;">
                   <ul class="pagination pagination-sm mb-0">
@@ -267,6 +297,7 @@
               <th>Trigger Value</th>
               <th>Last Triggered</th>
               <th>Status</th>
+              <th style="width: 40px;">Del</th>
             </tr>
           </thead>
           <tbody>
@@ -301,6 +332,18 @@
                 {% else %}
                   <span class="badge bg-warning">{{ alert.status }}</span>
                 {% endif %}
+              </td>
+              <!-- Delete cell -->
+              <td>
+                <form method="POST"
+                      action="{{ url_for('delete_alert', alert_id=alert.id) }}"
+                      onsubmit="return confirm('Are you sure you want to delete this alert?');"
+                      style="display:inline;">
+                  <button type="submit" class="delete-alert-btn" title="Delete Alert">
+                    <!-- FA6 fix: "fa-solid" prefix -->
+                    <i class="fa-solid fa-trash"></i>
+                  </button>
+                </form>
               </td>
             </tr>
             {% endfor %}
@@ -416,6 +459,7 @@
         })
         .then(response => {
           if (!response.ok) {
+            // Fix the backtick syntax for template string
             throw new Error(`Server returned status ${response.status}`);
           }
           return response.json();

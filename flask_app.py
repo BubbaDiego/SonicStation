@@ -359,75 +359,83 @@ def heat():
     return render_template("heat.html", heat_data=heat_data)
 
 @app.route("/alerts")
+@app.route("/alerts")
 def alerts():
     """
     Displays:
-    1) Three info boxes labeled Low/Medium/High based on Travel% thresholds
-       from sonic_config.json.
-    2) "Active Alerts" table (left) and "Recent Alerts" table (right)
-       pulled from the real 'alerts' table in DB.
-    3) "Add New Alert" form at the bottom.
+    1) A Market Snapshot (mini_prices) panel (BTC, ETH, SOL) if present in DB
+    2) Three info boxes labeled Low/Medium/High based on negative travel_percent in positions
+    3) Active Alerts (left), Recent Alerts (right)
+    4) "Add New Alert" form at the bottom
     """
     data_locker = DataLocker(DB_PATH)
 
-    # 1) Count Low/Med/High from positions
+    # 1) Build the mini_prices list from the 'prices' table
+    mini_prices = []
+    for asset in ["BTC", "ETH", "SOL"]:
+        row = data_locker.get_latest_price(asset)
+        if row:
+            mini_prices.append({
+                "asset_type": row["asset_type"],
+                "current_price": float(row["current_price"])
+            })
+    # If none are found, mini_prices remains empty => "No price data" in the template
+
+    # 2) Calculate Low/Med/High from positions' current_travel_percent
     positions = data_locker.read_positions()
+
+    # Load config to get the travel_percent_liquid_ranges
     config_dict = load_config(CONFIG_PATH, data_locker.get_db_connection())
     liquid_cfg = config_dict["alert_ranges"]["travel_percent_liquid_ranges"]
 
-    low_thresh = float(liquid_cfg["low"])     # e.g. -25
-    med_thresh = float(liquid_cfg["medium"])  # e.g. -50
-    high_thresh = float(liquid_cfg["high"])   # e.g. -75
+    low_thresh   = float(liquid_cfg["low"])     # e.g. -25
+    med_thresh   = float(liquid_cfg["medium"])  # e.g. -50
+    high_thresh  = float(liquid_cfg["high"])    # e.g. -75
 
-    low_count = 0
-    med_count = 0
-    high_count = 0
+    low_alert_count = 0
+    medium_alert_count = 0
+    high_alert_count = 0
 
     for pos in positions:
         val = float(pos.get("current_travel_percent", 0.0))
         if val < 0:
             if val <= high_thresh:
-                high_count += 1
+                high_alert_count += 1
             elif val <= med_thresh:
-                med_count += 1
+                medium_alert_count += 1
             elif val <= low_thresh:
-                low_count += 1
+                low_alert_count += 1
 
-    # 2) Fetch real alerts from DB
+    # 3) Fetch real alerts from DB and split into active vs recent
     all_alerts = data_locker.get_alerts()
-
-    # Separate them into "active" vs "recent" (anything not 'Active')
     active_alerts_data = []
     recent_alerts_data = []
     for alert in all_alerts:
-        # 'alert' should have keys like "alert_type", "trigger_value", "status", etc.
         if alert.get("status", "").lower() == "active":
             active_alerts_data.append(alert)
         else:
             recent_alerts_data.append(alert)
 
-    mini_prices = [
-        {"asset_type": "BTC", "current_price": 29750.12},
-        {"asset_type": "ETH", "current_price": 1850.45},
-        {"asset_type": "SOL", "current_price": 23.01}
-    ]
-
+    # 4) Render 'alerts.html' with real data
     return render_template(
         "alerts.html",
         mini_prices=mini_prices,
-        low_alert_count=low_count,
-        medium_alert_count=med_count,
-        high_alert_count=high_count,
+        low_alert_count=low_alert_count,
+        medium_alert_count=medium_alert_count,
+        high_alert_count=high_alert_count,
         active_alerts=active_alerts_data,
         recent_alerts=recent_alerts_data
     )
 
 
+
 @app.route("/alerts/create", methods=["POST"])
 def alerts_create():
     alert_type = request.form.get("alert_type", "")
-    asset_type = request.form.get("asset_type", "")      # from new form field
+    asset_type = request.form.get("asset_type", "")
     trigger_value_str = request.form.get("trigger_value", "0")
+    condition = request.form.get("condition", "ABOVE")  # <--- read from form
+
     status = request.form.get("status", "Active")
     notification_type = request.form.get("notification_type", "SMS")
     position_ref = request.form.get("position_reference_id", "")
@@ -437,12 +445,12 @@ def alerts_create():
     except ValueError:
         trigger_value = 0.0
 
-    # Make an alert dict with the fields from the form:
     new_alert = {
         "id": str(uuid4()),
         "alert_type": alert_type,
-        "asset_type": asset_type,  # pass in the selected asset
+        "asset_type": asset_type,
         "trigger_value": trigger_value,
+        "condition": condition,           # <--- add it here!
         "notification_type": notification_type,
         "last_triggered": None,
         "status": status,
@@ -456,7 +464,7 @@ def alerts_create():
     }
 
     data_locker = DataLocker(DB_PATH)
-    data_locker.create_alert(new_alert)
+    data_locker.create_alert(new_alert)  # Must include 'condition' in alert_dict
 
     flash("New alert created successfully!", "success")
     return redirect(url_for("alerts"))
@@ -594,6 +602,13 @@ def delete_all_jupiter_positions():
     data_locker.cursor.execute("DELETE FROM positions WHERE wallet_name IS NOT NULL")
     data_locker.conn.commit()
     return jsonify({"message": "All Jupiter positions deleted."}), 200
+
+@app.route("/delete-alert/<alert_id>", methods=["POST"])
+def delete_alert(alert_id):
+    data_locker = DataLocker(DB_PATH)
+    data_locker.delete_alert(alert_id)
+    flash("Alert deleted!", "success")
+    return redirect(url_for("alerts"))
 
 @app.route("/update_jupiter", methods=["POST"])
 def update_jupiter():
