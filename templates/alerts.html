@@ -12,6 +12,39 @@
     font-weight: bold;
   }
 
+  /* Price panel container styling */
+  .price-panel.card {
+    background-color: #F0F0F0 !important;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+  }
+  .price-panel .card-header {
+    background-color: #e5ffe5 !important;
+    font-weight: bold;
+  }
+
+  /* Smaller price boxes inside the panel */
+  .mini-price-box {
+    background-color: #FFFFFF !important; /* or #f9f9f9 for subtle */
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    text-align: center;
+    padding: 10px;
+  }
+  .mini-price-box img {
+    width: 24px;
+    height: 24px;
+    margin-right: 6px;
+  }
+  .mini-price-box .mini-price-value {
+    font-size: 1.25rem; /* slightly bigger text for the price */
+    font-weight: bold;
+  }
+  .mini-price-box .mini-price-label {
+    font-size: 0.9rem;
+    color: #555;
+  }
+
   /* Table striping */
   .table-striped tbody tr:nth-of-type(odd) {
     background-color: rgba(0, 0, 0, 0.05);
@@ -32,6 +65,58 @@
     font-weight: bold;
   }
 </style>
+
+<!-- ====== SECTION 0: MINI PRICE PANEL (Above Low/Med/High) ====== -->
+{% if mini_prices is not defined %}
+  {% set mini_prices = [] %}
+{% endif %}
+<div class="card price-panel mb-4">
+  <div class="card-header">Market Snapshot</div>
+  <div class="card-body">
+    <div class="row row-cols-1 row-cols-md-3 g-2">
+      {% for p in mini_prices %}
+      <div class="col">
+        <div class="mini-price-box h-100 d-flex flex-column align-items-center justify-content-center">
+          <!-- Icon based on asset_type -->
+          {% if p.asset_type == "BTC" %}
+            <img src="/static/images/btc_logo.png" alt="BTC">
+          {% elif p.asset_type == "ETH" %}
+            <img src="/static/images/eth_logo.png" alt="ETH">
+          {% elif p.asset_type == "SOL" %}
+            <img src="/static/images/sol_logo.png" alt="SOL">
+          {% endif %}
+
+          <!-- Label -->
+          <div class="mini-price-label">
+            {% if p.asset_type == "BTC" %}
+              Bitcoin
+            {% elif p.asset_type == "ETH" %}
+              Ethereum
+            {% elif p.asset_type == "SOL" %}
+              Solana
+            {% else %}
+              {{ p.asset_type }}
+            {% endif %}
+          </div>
+
+          <!-- Price -->
+          <div class="mini-price-value">
+            {{ p.current_price|round(2) }}
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+      {% if mini_prices|length == 0 %}
+        <!-- If no prices passed in, show a placeholder or nothing -->
+        <div class="col">
+          <div class="mini-price-box">
+            <em>No price data</em>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
 
 <!-- ====== SECTION 1: Title + "Check Alerts" Button + Info Boxes ====== -->
 <div class="d-flex justify-content-between align-items-center mb-3">
@@ -88,7 +173,7 @@
 </div>
 
 <!-- ====== SECTION 2: Two-Column Layout ======
-     LEFT COLUMN = Active Alerts 
+     LEFT COLUMN = Active Alerts
      RIGHT COLUMN = Recent Alerts
 -->
 <div class="row">
@@ -100,10 +185,12 @@
           <thead>
             <!-- Title row -->
             <tr class="title-row">
-              <th colspan="4">Active Alerts</th>
+              <th colspan="6">Active Alerts</th>
             </tr>
             <tr>
               <th>Type</th>
+              <th>Asset</th>
+              <th>Condition</th>
               <th>Trigger Value</th>
               <th>Last Triggered</th>
               <th>Status</th>
@@ -116,6 +203,21 @@
             {% for alert in active_alerts %}
             <tr>
               <td>{{ alert.alert_type }}</td>
+              <td>
+                {% if alert.asset_type == "BTC" %}
+                  <img src="/static/images/btc_logo.png" width="24" height="24" alt="BTC" />
+                  BTC
+                {% elif alert.asset_type == "ETH" %}
+                  <img src="/static/images/eth_logo.png" width="24" height="24" alt="ETH" />
+                  ETH
+                {% elif alert.asset_type == "SOL" %}
+                  <img src="/static/images/sol_logo.png" width="24" height="24" alt="SOL" />
+                  SOL
+                {% else %}
+                  {{ alert.asset_type or "?" }}
+                {% endif %}
+              </td>
+              <td>{{ alert.condition or "ABOVE" }}</td>
               <td>{{ alert.trigger_value }}</td>
               <td>{{ alert.last_triggered or "N/A" }}</td>
               <td>
@@ -143,7 +245,7 @@
           <thead>
             <!-- Title row with “Recent Alerts” + example pagination placeholder -->
             <tr class="title-row">
-              <th colspan="4">
+              <th colspan="6">
                 Recent Alerts
                 <nav class="float-end" style="display: inline-block;">
                   <ul class="pagination pagination-sm mb-0">
@@ -160,6 +262,8 @@
             </tr>
             <tr>
               <th>Type</th>
+              <th>Asset</th>
+              <th>Condition</th>
               <th>Trigger Value</th>
               <th>Last Triggered</th>
               <th>Status</th>
@@ -172,6 +276,21 @@
             {% for alert in recent_alerts %}
             <tr>
               <td>{{ alert.alert_type }}</td>
+              <td>
+                {% if alert.asset_type == "BTC" %}
+                  <img src="/static/images/btc_logo.png" width="24" height="24" alt="BTC" />
+                  BTC
+                {% elif alert.asset_type == "ETH" %}
+                  <img src="/static/images/eth_logo.png" width="24" height="24" alt="ETH" />
+                  ETH
+                {% elif alert.asset_type == "SOL" %}
+                  <img src="/static/images/sol_logo.png" width="24" height="24" alt="SOL" />
+                  SOL
+                {% else %}
+                  {{ alert.asset_type or "?" }}
+                {% endif %}
+              </td>
+              <td>{{ alert.condition or "ABOVE" }}</td>
               <td>{{ alert.trigger_value }}</td>
               <td>{{ alert.last_triggered or "N/A" }}</td>
               <td>
@@ -207,6 +326,18 @@
             <option value="DELTA_CHANGE">Delta Change</option>
           </select>
         </div>
+
+        <!-- Asset -->
+        <div class="col-md-4">
+          <label for="asset_type" class="form-label fw-bold">Asset</label>
+          <select class="form-select" id="asset_type" name="asset_type">
+            <option value="">(None)</option>
+            <option value="BTC">BTC</option>
+            <option value="ETH">ETH</option>
+            <option value="SOL">SOL</option>
+          </select>
+        </div>
+
         <!-- Trigger Value -->
         <div class="col-md-4">
           <label for="trigger_value" class="form-label fw-bold">Trigger Value</label>
@@ -219,6 +350,16 @@
             required
           />
         </div>
+
+        <!-- Condition: ABOVE / BELOW -->
+        <div class="col-md-4">
+          <label for="condition" class="form-label fw-bold">Condition</label>
+          <select class="form-select" id="condition" name="condition" required>
+            <option value="ABOVE">ABOVE</option>
+            <option value="BELOW">BELOW</option>
+          </select>
+        </div>
+
         <!-- Status -->
         <div class="col-md-4">
           <label for="status" class="form-label fw-bold">Status</label>
@@ -227,6 +368,7 @@
             <option value="Disabled">Disabled</option>
           </select>
         </div>
+
         <!-- Notification Type -->
         <div class="col-md-4">
           <label for="notification_type" class="form-label fw-bold">Notification</label>
@@ -236,6 +378,7 @@
             <option value="ACTION">Action</option>
           </select>
         </div>
+
         <!-- Position Reference (Optional) -->
         <div class="col-md-4">
           <label for="position_ref" class="form-label fw-bold">Position (Optional)</label>
@@ -247,6 +390,7 @@
             placeholder="e.g. position ID"
           />
         </div>
+
         <!-- Submit Button -->
         <div class="col-md-4 d-flex align-items-end">
           <button type="submit" class="btn btn-primary w-100">Add Alert</button>

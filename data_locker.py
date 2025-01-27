@@ -90,6 +90,7 @@ class DataLocker:
                     trigger_value REAL NOT NULL,
                     notification_type TEXT NOT NULL,
                     last_triggered DATETIME,
+                    condition TEXT NOT NULL,
                     status TEXT NOT NULL,
                     frequency INTEGER NOT NULL,
                     counter INTEGER NOT NULL,
@@ -389,7 +390,7 @@ class DataLocker:
 
     def create_alert(self, alert_dict: dict):
         """
-        Inserts a new alert record from a dictionary.
+        Inserts a new alert record from a dictionary, including asset_type.
         """
         try:
             if not alert_dict.get("id"):
@@ -399,20 +400,44 @@ class DataLocker:
             cursor = conn.cursor()
             cursor.execute("""
                 INSERT INTO alerts (
-                    id, alert_type, trigger_value, notification_type, last_triggered,
-                    status, frequency, counter, liquidation_distance, target_travel_percent,
-                    liquidation_price, notes, position_reference_id
+                    id,
+                    alert_type,
+                    asset_type,            -- <--- ADDED
+                    trigger_value,
+                    condition,
+                    notification_type,
+                    last_triggered,
+                    status,
+                    frequency,
+                    counter,
+                    liquidation_distance,
+                    target_travel_percent,
+                    liquidation_price,
+                    notes,
+                    position_reference_id
                 )
                 VALUES (
-                    :id, :alert_type, :trigger_value, :notification_type, :last_triggered,
-                    :status, :frequency, :counter, :liquidation_distance, :target_travel_percent,
-                    :liquidation_price, :notes, :position_reference_id
+                    :id,
+                    :alert_type,
+                    :asset_type,          -- <--- ADDED
+                    :trigger_value,
+                    :condition,
+                    :notification_type,
+                    :last_triggered,
+                    :status,
+                    :frequency,
+                    :counter,
+                    :liquidation_distance,
+                    :target_travel_percent,
+                    :liquidation_price,
+                    :notes,
+                    :position_reference_id
                 )
             """, alert_dict)
+
             conn.commit()
             conn.close()
             self.logger.debug(f"Created alert with ID={alert_dict['id']}")
-
         except sqlite3.IntegrityError as ie:
             self.logger.error(f"IntegrityError during alert creation: {ie}", exc_info=True)
         except sqlite3.Error as e:

@@ -11,6 +11,7 @@ from datetime import datetime
 import requests
 from flask import Flask
 from typing import List
+from uuid import uuid4
 
 from flask import (
     Flask,
@@ -27,6 +28,7 @@ from flask import (
 # Panda Stuff
 from models import Position
 from data_locker import DataLocker
+from config_manager import load_config
 from config import AppConfig
 from calc_services import CalcServices
 from price_monitor import PriceMonitor
@@ -74,6 +76,14 @@ def initialize_services():
         "calc_services": calc_services,
         "manager": manager
     }
+
+
+manager = AlertManager(
+    db_path=DB_PATH,
+    poll_interval=60,
+    config_path=CONFIG_PATH
+)
+
 
 #######################################
 # ROUTES
@@ -352,60 +362,62 @@ def heat():
 def alerts():
     """
     Displays:
-    1) Three info boxes (Active Alerts / Triggered Today / Disabled Alerts).
-    2) Two tables side-by-side:
-       LEFT = Active Alerts
-       RIGHT = Recent Alerts
+    1) Three info boxes labeled Low/Medium/High based on Travel% thresholds
+       from sonic_config.json.
+    2) "Active Alerts" table (left) and "Recent Alerts" table (right)
+       pulled from the real 'alerts' table in DB.
+    3) "Add New Alert" form at the bottom.
     """
-    # For illustration, these are hard-coded.
-    # In reality, you'd fetch them from your database or logic layer.
-    active_alerts_count = 5
-    triggered_today_count = 2
-    disabled_alerts_count = 1
+    data_locker = DataLocker(DB_PATH)
 
-    # "Active Alerts" data
-    active_alerts_data = [
-        {
-            "alert_type": "PRICE_THRESHOLD",
-            "trigger_value": 29000,
-            "last_triggered": "2025-01-26 07:10 PST",
-            "status": "Active"
-        },
-        {
-            "alert_type": "TRAVEL_PERCENT",
-            "trigger_value": -25,
-            "last_triggered": None,
-            "status": "Active"
-        },
-        {
-            "alert_type": "DELTA_CHANGE",
-            "trigger_value": 10,
-            "last_triggered": None,
-            "status": "Active"
-        }
-    ]
+    # 1) Count Low/Med/High from positions
+    positions = data_locker.read_positions()
+    config_dict = load_config(CONFIG_PATH, data_locker.get_db_connection())
+    liquid_cfg = config_dict["alert_ranges"]["travel_percent_liquid_ranges"]
 
-    # "Recent Alerts" data
-    recent_alerts_data = [
-        {
-            "alert_type": "PRICE_THRESHOLD",
-            "trigger_value": 30500,
-            "last_triggered": "2025-01-26 09:45 PST",
-            "status": "Active"
-        },
-        {
-            "alert_type": "TRAVEL_PERCENT",
-            "trigger_value": -30,
-            "last_triggered": "2025-01-25 23:59 PST",
-            "status": "Disabled"
-        }
+    low_thresh = float(liquid_cfg["low"])     # e.g. -25
+    med_thresh = float(liquid_cfg["medium"])  # e.g. -50
+    high_thresh = float(liquid_cfg["high"])   # e.g. -75
+
+    low_count = 0
+    med_count = 0
+    high_count = 0
+
+    for pos in positions:
+        val = float(pos.get("current_travel_percent", 0.0))
+        if val < 0:
+            if val <= high_thresh:
+                high_count += 1
+            elif val <= med_thresh:
+                med_count += 1
+            elif val <= low_thresh:
+                low_count += 1
+
+    # 2) Fetch real alerts from DB
+    all_alerts = data_locker.get_alerts()
+
+    # Separate them into "active" vs "recent" (anything not 'Active')
+    active_alerts_data = []
+    recent_alerts_data = []
+    for alert in all_alerts:
+        # 'alert' should have keys like "alert_type", "trigger_value", "status", etc.
+        if alert.get("status", "").lower() == "active":
+            active_alerts_data.append(alert)
+        else:
+            recent_alerts_data.append(alert)
+
+    mini_prices = [
+        {"asset_type": "BTC", "current_price": 29750.12},
+        {"asset_type": "ETH", "current_price": 1850.45},
+        {"asset_type": "SOL", "current_price": 23.01}
     ]
 
     return render_template(
         "alerts.html",
-        active_alerts_count=active_alerts_count,
-        triggered_today_count=triggered_today_count,
-        disabled_alerts_count=disabled_alerts_count,
+        mini_prices=mini_prices,
+        low_alert_count=low_count,
+        medium_alert_count=med_count,
+        high_alert_count=high_count,
         active_alerts=active_alerts_data,
         recent_alerts=recent_alerts_data
     )
@@ -413,11 +425,8 @@ def alerts():
 
 @app.route("/alerts/create", methods=["POST"])
 def alerts_create():
-    """
-    "Add New Alert" form submission.
-    Grab fields from the form and insert into DB or log it, etc.
-    """
     alert_type = request.form.get("alert_type", "")
+    asset_type = request.form.get("asset_type", "")      # from new form field
     trigger_value_str = request.form.get("trigger_value", "0")
     status = request.form.get("status", "Active")
     notification_type = request.form.get("notification_type", "SMS")
@@ -428,20 +437,37 @@ def alerts_create():
     except ValueError:
         trigger_value = 0.0
 
-    # Insert into DB or do something
-    # e.g., data_locker.create_alert({ ...fields... })
+    # Make an alert dict with the fields from the form:
+    new_alert = {
+        "id": str(uuid4()),
+        "alert_type": alert_type,
+        "asset_type": asset_type,  # pass in the selected asset
+        "trigger_value": trigger_value,
+        "notification_type": notification_type,
+        "last_triggered": None,
+        "status": status,
+        "frequency": 0,
+        "counter": 0,
+        "liquidation_distance": 0.0,
+        "target_travel_percent": 0.0,
+        "liquidation_price": 0.0,
+        "notes": "",
+        "position_reference_id": position_ref
+    }
+
+    data_locker = DataLocker(DB_PATH)
+    data_locker.create_alert(new_alert)
 
     flash("New alert created successfully!", "success")
     return redirect(url_for("alerts"))
 
-
 @app.route("/manual_check_alerts", methods=["POST"])
 def manual_check_alerts():
     """
-    Called by the "Check Alerts" button.
-    In reality, you'd call manager.check_alerts() or similar.
+    Called by the "Check Alerts" button to run manager.check_alerts() manually.
+    This calls your Travel% logic (and any others you define).
     """
-    # Suppose you run your checks here
+    manager.check_alerts()
     return jsonify({"status": "success", "message": "Alerts have been manually checked!"}), 200
 
 @app.route("/jupiter-perps-proxy", methods=["GET"])
