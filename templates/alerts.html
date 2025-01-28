@@ -1,35 +1,42 @@
 {% extends "sonic_admin.html" %}
 {% block content %}
 
+<!-- We’re omitting Font Awesome – we’ll use a basic emoji for the trash icon. -->
+
 <style>
-  /* The mini price panel container/card remains narrower (60%), centered */
+  /* ===== MARKET SNAPSHOT PANEL ===== */
   .mini-price-panel.card {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
     border-radius: 8px;
-    margin: 0 auto; /* center horizontally */
-    width: 60%;
-    min-width: 400px;
+    margin: 0 auto;
+    max-width: 40%; /* 33% smaller than the old 60%. */
   }
-  /* Medium-blue header, smaller height */
+
   .mini-price-panel .card-header {
-    background-color: #4da6ff !important; /* medium blue */
+    background-color: #4da6ff !important;
     color: #fff;
     font-weight: bold;
     font-size: 1rem;
-    line-height: 1.5rem;
+    line-height: 1.2rem;
     padding: 0.3rem 1rem;
     text-align: center;
   }
 
-  /* Price container with less vertical padding => reduced height */
+  /* Reduce card-body padding a bit => smaller height */
+  .mini-price-panel .card-body {
+    padding: 0.4rem 0.8rem;
+  }
+
   .mini-price-container {
     display: flex;
+    flex-wrap: wrap;
     justify-content: space-evenly;
     align-items: center;
-    padding: 0.5rem 0;
+    padding: 0.3rem 0;
     gap: 1rem;
   }
+
   .mini-price-box {
     background-color: #fff;
     border: 1px solid #ccc;
@@ -38,23 +45,21 @@
     align-items: center;
     padding: 0.3rem 0.6rem;
   }
-  /* Icon sizing */
+
+  /* Large icons, large text */
   .mini-price-box img {
-    width: 28px;
-    height: 28px;
-    margin-right: 6px;
-  }
-  .mini-price-box .mini-price-label {
-    font-size: 1.1rem;
-    color: #333;
-    margin-right: 0.5rem;
-  }
-  .mini-price-box .mini-price-value {
-    font-size: 1.2rem;
-    font-weight: bold;
+    width: 42px;
+    height: 42px;
+    margin-right: 9px;
   }
 
-  /* The rest of the alerts styling remain the same */
+  .mini-price-box .mini-price-value {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #333;
+  }
+
+  /* ===== ALERTS STYLING ===== */
   .alert-box.card {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
@@ -67,7 +72,7 @@
     background-color: rgba(0, 0, 0, 0.05);
   }
   .title-row {
-    background-color: #f0e5ff !important; /* Light purple */
+    background-color: #f0e5ff !important;
     font-weight: bold;
   }
   .card.add-alert {
@@ -85,16 +90,17 @@
     background: none;
     border: none;
     color: #cc0000;
-    font-size: 1rem; 
+    font-size: 1rem;
     margin: 0;
     padding: 0;
+    cursor: pointer;
   }
   .delete-alert-btn:hover {
     color: #ff0000;
   }
 </style>
 
-<!-- ====== SECTION 0: MINI PRICE PANEL (Above the Low/Medium/High) ====== -->
+<!-- ====== SECTION 0: MARKET SNAPSHOT ====== -->
 {% if mini_prices is not defined %}
   {% set mini_prices = [] %}
 {% endif %}
@@ -103,30 +109,23 @@
   <div class="card-body">
     <div class="mini-price-container">
       {% if mini_prices|length == 0 %}
-        <!-- If no mini_prices passed in, show a placeholder -->
         <div class="mini-price-box">
           <em>No price data</em>
         </div>
       {% else %}
         {% for p in mini_prices %}
         <div class="mini-price-box">
-          <!-- Icon -->
           {% if p.asset_type == "BTC" %}
             <img src="/static/images/btc_logo.png" alt="BTC">
-            <span class="mini-price-label">BTC</span>
           {% elif p.asset_type == "ETH" %}
             <img src="/static/images/eth_logo.png" alt="ETH">
-            <span class="mini-price-label">ETH</span>
           {% elif p.asset_type == "SOL" %}
             <img src="/static/images/sol_logo.png" alt="SOL">
-            <span class="mini-price-label">SOL</span>
           {% else %}
-            <img src="/static/images/placeholder.png" alt="ASSET" style="width:28px; height:28px; margin-right:6px;">
-            <span class="mini-price-label">{{ p.asset_type }}</span>
+            <img src="/static/images/placeholder.png" alt="ASSET" style="width:42px; height:42px; margin-right:9px;">
           {% endif %}
-
           <span class="mini-price-value">
-            {{ p.current_price|round(2) }}
+            {{ '{:,.2f}'.format(p.current_price) }}
           </span>
         </div>
         {% endfor %}
@@ -138,7 +137,6 @@
 <!-- ====== SECTION 1: Title + "Check Alerts" Button + Info Boxes ====== -->
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h2 class="text-dark mb-0">Alerts</h2>
-  <!-- POST to /manual_check_alerts -->
   <form method="POST" action="{{ url_for('manual_check_alerts') }}" id="updateAlertsForm">
     <button type="submit" class="btn btn-success">Check Alerts</button>
   </form>
@@ -146,53 +144,36 @@
 
 <!-- Row of 3 info boxes: Low / Medium / High -->
 <div class="row row-cols-1 row-cols-md-3 g-4 mb-4">
-  <!-- Low Alerts -->
   <div class="col">
     <div class="card alert-box h-100">
-      <!-- Green banner -->
       <div class="card-header text-center bg-success text-white">Low Alerts</div>
       <div class="card-body text-center">
-        <div class="display-6 mb-2">
-          {{ low_alert_count or 0 }}
-        </div>
+        <div class="display-6 mb-2">{{ low_alert_count or 0 }}</div>
         <small class="text-muted">Currently in Low zone</small>
       </div>
     </div>
   </div>
-
-  <!-- Medium Alerts -->
   <div class="col">
     <div class="card alert-box h-100">
-      <!-- Yellow banner -->
       <div class="card-header text-center bg-warning">Medium Alerts</div>
       <div class="card-body text-center">
-        <div class="display-6 mb-2">
-          {{ medium_alert_count or 0 }}
-        </div>
+        <div class="display-6 mb-2">{{ medium_alert_count or 0 }}</div>
         <small class="text-muted">Currently in Medium zone</small>
       </div>
     </div>
   </div>
-
-  <!-- High Alerts -->
   <div class="col">
     <div class="card alert-box h-100">
-      <!-- Red banner -->
       <div class="card-header text-center bg-danger text-white">High Alerts</div>
       <div class="card-body text-center">
-        <div class="display-6 mb-2">
-          {{ high_alert_count or 0 }}
-        </div>
+        <div class="display-6 mb-2">{{ high_alert_count or 0 }}</div>
         <small class="text-muted">Currently in High zone</small>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ====== SECTION 2: Two-Column Layout ======
-     LEFT COLUMN = Active Alerts
-     RIGHT COLUMN = Recent Alerts
--->
+<!-- ====== SECTION 2: Active Alerts / Recent Alerts ====== -->
 <div class="row">
   <!-- LEFT COLUMN: Active Alerts -->
   <div class="col-md-6">
@@ -200,9 +181,8 @@
       <div class="card-body p-2">
         <table class="table table-striped w-100 mb-0">
           <thead>
-            <!-- Title row -->
             <tr class="title-row">
-              <th colspan="7">Active Alerts</th>  <!-- now 7 columns to accommodate "Delete" -->
+              <th colspan="7">Active Alerts</th>
             </tr>
             <tr>
               <th>Type</th>
@@ -211,7 +191,7 @@
               <th>Trigger Value</th>
               <th>Last Triggered</th>
               <th>Status</th>
-              <th style="width: 40px;">Del</th> <!-- small column for delete -->
+              <th style="width: 40px;">Del</th>
             </tr>
           </thead>
           <tbody>
@@ -224,19 +204,16 @@
               <td>
                 {% if alert.asset_type == "BTC" %}
                   <img src="/static/images/btc_logo.png" width="24" height="24" alt="BTC" />
-                  BTC
                 {% elif alert.asset_type == "ETH" %}
                   <img src="/static/images/eth_logo.png" width="24" height="24" alt="ETH" />
-                  ETH
                 {% elif alert.asset_type == "SOL" %}
                   <img src="/static/images/sol_logo.png" width="24" height="24" alt="SOL" />
-                  SOL
                 {% else %}
                   {{ alert.asset_type or "?" }}
                 {% endif %}
               </td>
               <td>{{ alert.condition or "ABOVE" }}</td>
-              <td>{{ alert.trigger_value }}</td>
+              <td>{{ '{:,.2f}'.format(alert.trigger_value|float) }}</td>
               <td>{{ alert.last_triggered or "N/A" }}</td>
               <td>
                 {% if alert.status == "Active" %}
@@ -247,15 +224,14 @@
                   <span class="badge bg-warning">{{ alert.status }}</span>
                 {% endif %}
               </td>
-              <!-- Delete cell -->
               <td>
+                <!-- No Font Awesome; use a trash emoji -->
                 <form method="POST"
                       action="{{ url_for('delete_alert', alert_id=alert.id) }}"
                       onsubmit="return confirm('Are you sure you want to delete this alert?');"
                       style="display:inline;">
                   <button type="submit" class="delete-alert-btn" title="Delete Alert">
-                    <!-- FA6 fix: "fa-solid" prefix instead of "fas" -->
-                    <i class="fa-solid fa-trash"></i>
+                    🗑️
                   </button>
                 </form>
               </td>
@@ -273,15 +249,12 @@
       <div class="card-body p-2">
         <table class="table table-striped w-100 mb-0">
           <thead>
-            <!-- Title row with “Recent Alerts” + example pagination placeholder -->
             <tr class="title-row">
               <th colspan="7">
                 Recent Alerts
                 <nav class="float-end" style="display: inline-block;">
                   <ul class="pagination pagination-sm mb-0">
-                    <li class="page-item disabled">
-                      <a class="page-link" href="#" tabindex="-1">«</a>
-                    </li>
+                    <li class="page-item disabled"><a class="page-link" href="#">«</a></li>
                     <li class="page-item active"><a class="page-link" href="#">1</a></li>
                     <li class="page-item"><a class="page-link" href="#">2</a></li>
                     <li class="page-item"><a class="page-link" href="#">3</a></li>
@@ -310,19 +283,16 @@
               <td>
                 {% if alert.asset_type == "BTC" %}
                   <img src="/static/images/btc_logo.png" width="24" height="24" alt="BTC" />
-                  BTC
                 {% elif alert.asset_type == "ETH" %}
                   <img src="/static/images/eth_logo.png" width="24" height="24" alt="ETH" />
-                  ETH
                 {% elif alert.asset_type == "SOL" %}
                   <img src="/static/images/sol_logo.png" width="24" height="24" alt="SOL" />
-                  SOL
                 {% else %}
                   {{ alert.asset_type or "?" }}
                 {% endif %}
               </td>
               <td>{{ alert.condition or "ABOVE" }}</td>
-              <td>{{ alert.trigger_value }}</td>
+              <td>{{ '{:,.2f}'.format(alert.trigger_value|float) }}</td>
               <td>{{ alert.last_triggered or "N/A" }}</td>
               <td>
                 {% if alert.status == "Active" %}
@@ -333,15 +303,14 @@
                   <span class="badge bg-warning">{{ alert.status }}</span>
                 {% endif %}
               </td>
-              <!-- Delete cell -->
               <td>
+                <!-- Trash emoji again -->
                 <form method="POST"
                       action="{{ url_for('delete_alert', alert_id=alert.id) }}"
                       onsubmit="return confirm('Are you sure you want to delete this alert?');"
                       style="display:inline;">
                   <button type="submit" class="delete-alert-btn" title="Delete Alert">
-                    <!-- FA6 fix: "fa-solid" prefix -->
-                    <i class="fa-solid fa-trash"></i>
+                    🗑️
                   </button>
                 </form>
               </td>
@@ -354,13 +323,12 @@
   </div>
 </div>
 
-<!-- ====== SECTION 3: "Add New Alert" Form ====== -->
+<!-- ====== SECTION 3: ADD NEW ALERT FORM ====== -->
 <div class="card add-alert">
   <div class="card-header">Add New Alert</div>
   <div class="card-body">
     <form method="POST" action="{{ url_for('alerts_create') }}">
       <div class="row g-3">
-        <!-- Alert Type -->
         <div class="col-md-4">
           <label for="alert_type" class="form-label fw-bold">Alert Type</label>
           <select class="form-select" id="alert_type" name="alert_type" required>
@@ -369,8 +337,6 @@
             <option value="DELTA_CHANGE">Delta Change</option>
           </select>
         </div>
-
-        <!-- Asset -->
         <div class="col-md-4">
           <label for="asset_type" class="form-label fw-bold">Asset</label>
           <select class="form-select" id="asset_type" name="asset_type">
@@ -380,8 +346,6 @@
             <option value="SOL">SOL</option>
           </select>
         </div>
-
-        <!-- Trigger Value -->
         <div class="col-md-4">
           <label for="trigger_value" class="form-label fw-bold">Trigger Value</label>
           <input
@@ -393,8 +357,6 @@
             required
           />
         </div>
-
-        <!-- Condition: ABOVE / BELOW -->
         <div class="col-md-4">
           <label for="condition" class="form-label fw-bold">Condition</label>
           <select class="form-select" id="condition" name="condition" required>
@@ -402,8 +364,6 @@
             <option value="BELOW">BELOW</option>
           </select>
         </div>
-
-        <!-- Status -->
         <div class="col-md-4">
           <label for="status" class="form-label fw-bold">Status</label>
           <select class="form-select" id="status" name="status" required>
@@ -411,8 +371,6 @@
             <option value="Disabled">Disabled</option>
           </select>
         </div>
-
-        <!-- Notification Type -->
         <div class="col-md-4">
           <label for="notification_type" class="form-label fw-bold">Notification</label>
           <select class="form-select" id="notification_type" name="notification_type" required>
@@ -421,8 +379,6 @@
             <option value="ACTION">Action</option>
           </select>
         </div>
-
-        <!-- Position Reference (Optional) -->
         <div class="col-md-4">
           <label for="position_ref" class="form-label fw-bold">Position (Optional)</label>
           <input
@@ -433,8 +389,6 @@
             placeholder="e.g. position ID"
           />
         </div>
-
-        <!-- Submit Button -->
         <div class="col-md-4 d-flex align-items-end">
           <button type="submit" class="btn btn-primary w-100">Add Alert</button>
         </div>
@@ -449,8 +403,7 @@
     const updateAlertsForm = document.getElementById('updateAlertsForm');
     if (updateAlertsForm) {
       updateAlertsForm.addEventListener('submit', (event) => {
-        event.preventDefault(); // Prevent normal form submission
-
+        event.preventDefault();
         fetch('{{ url_for("manual_check_alerts") }}', {
           method: 'POST',
           headers: {
@@ -459,14 +412,12 @@
         })
         .then(response => {
           if (!response.ok) {
-            // Fix the backtick syntax for template string
             throw new Error(`Server returned status ${response.status}`);
           }
           return response.json();
         })
         .then(data => {
           console.log('Check Alerts response:', data);
-          // Reload the page to see updated data
           window.location.reload();
         })
         .catch(err => {

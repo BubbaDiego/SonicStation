@@ -94,9 +94,26 @@ def index():
     """Redirect to positions page."""
     return redirect(url_for("positions"))
 
+
+def get_alert_class(value, low_thresh, med_thresh, high_thresh):
+    if high_thresh is None:
+        high_thresh = float('inf')
+    if med_thresh is None:
+        med_thresh = float('inf')
+    if low_thresh is None:
+        low_thresh = float('-inf')
+
+    if value >= high_thresh:
+        return "alert-high"
+    elif value >= med_thresh:
+        return "alert-medium"
+    elif value >= low_thresh:
+        return "alert-low"
+    else:
+        return "alert-high"
+
 @app.route("/positions")
 def positions():
-    """Displays positions in a table."""
     data_locker = DataLocker(db_path=DB_PATH)
     calc_services = CalcServices()
 
@@ -109,7 +126,7 @@ def positions():
     # 3) Enrich each position (PnL, leverage, etc.) via aggregator
     updated_positions = calc_services.aggregator_positions(positions_data, DB_PATH)
 
-    # 4) Possibly attach wallet info, etc.
+    # Attach wallet info
     for pos in updated_positions:
         pos["collateral"] = float(pos.get("collateral") or 0.0)
         wallet_name = pos.get("wallet_name")
@@ -119,15 +136,108 @@ def positions():
         else:
             pos["wallet_name"] = None
 
-    # 5) Compute overall totals
+    # Load config (alert_ranges)
+    config_data = load_app_config()  # or load_config_hybrid(...)
+    alert_dict = config_data.alert_ranges or {}
+
+    # Helper to classify a numeric value vs. (low/medium/high)
+    def get_alert_class(value, low_thresh, med_thresh, high_thresh):
+        if high_thresh is None:
+            high_thresh = float('inf')
+        if med_thresh is None:
+            med_thresh = float('inf')
+        if low_thresh is None:
+            low_thresh = float('-inf')
+
+        if value >= high_thresh:
+            return "alert-high"
+        elif value >= med_thresh:
+            return "alert-medium"
+        elif value >= low_thresh:
+            return "alert-low"
+        else:
+            return ""
+
+    # Example for each sub-range:
+    hi_cfg   = alert_dict.get("heat_index_ranges", {})
+    hi_low   = hi_cfg.get("low", 0.0)
+    hi_med   = hi_cfg.get("medium", 0.0)
+    hi_high  = hi_cfg.get("high", None)
+
+    coll_cfg = alert_dict.get("collateral_ranges", {})
+    coll_low   = coll_cfg.get("low", 0.0)
+    coll_med   = coll_cfg.get("medium", 0.0)
+    coll_high  = coll_cfg.get("high", None)
+
+    val_cfg = alert_dict.get("value_ranges", {})
+    val_low   = val_cfg.get("low", 0.0)
+    val_med   = val_cfg.get("medium", 0.0)
+    val_high  = val_cfg.get("high", None)
+
+    size_cfg = alert_dict.get("size_ranges", {})
+    size_low   = size_cfg.get("low", 0.0)
+    size_med   = size_cfg.get("medium", 0.0)
+    size_high  = size_cfg.get("high", None)
+
+    lev_cfg = alert_dict.get("leverage_ranges", {})
+    lev_low   = lev_cfg.get("low", 0.0)
+    lev_med   = lev_cfg.get("medium", 0.0)
+    lev_high  = lev_cfg.get("high", None)
+
+    liqd_cfg = alert_dict.get("liquidation_distance_ranges", {})
+    liqd_low   = liqd_cfg.get("low", 0.0)
+    liqd_med   = liqd_cfg.get("medium", 0.0)
+    liqd_high  = liqd_cfg.get("high", None)
+
+    tliq_cfg = alert_dict.get("travel_percent_liquid_ranges", {})
+    tliq_low   = tliq_cfg.get("low", 0.0)
+    tliq_med   = tliq_cfg.get("medium", 0.0)
+    tliq_high  = tliq_cfg.get("high", None)
+
+    tprof_cfg = alert_dict.get("travel_percent_profit_ranges", {})
+    tprof_low   = tprof_cfg.get("low", 0.0)
+    tprof_med   = tprof_cfg.get("medium", 0.0)
+    tprof_high  = tprof_cfg.get("high", None)
+
+    # Apply alert classes
+    for pos in updated_positions:
+        # Heat index
+        heat_val = float(pos.get("heat_index", 0.0))
+        pos["heat_alert_class"] = get_alert_class(heat_val, hi_low, hi_med, hi_high)
+
+        # Collateral
+        coll_val = float(pos["collateral"])
+        pos["collateral_alert_class"] = get_alert_class(coll_val, coll_low, coll_med, coll_high)
+
+        # Value
+        val = float(pos.get("value", 0.0))
+        pos["value_alert_class"] = get_alert_class(val, val_low, val_med, val_high)
+
+        # Size
+        sz = float(pos.get("size", 0.0))
+        pos["size_alert_class"] = get_alert_class(sz, size_low, size_med, size_high)
+
+        # Leverage
+        lev = float(pos.get("leverage", 0.0))
+        pos["leverage_alert_class"] = get_alert_class(lev, lev_low, lev_med, lev_high)
+
+        # Liquidation Distance
+        liqd = float(pos.get("liquidation_distance", 0.0))
+        pos["liqdist_alert_class"] = get_alert_class(liqd, liqd_low, liqd_med, liqd_high)
+
+        # Travel Percent (Liquid)
+        tliq_val = float(pos.get("current_travel_percent", 0.0))
+        pos["travel_liquid_alert_class"] = get_alert_class(tliq_val, tliq_low, tliq_med, tliq_high)
+
+        # Travel Percent (Profit)
+        tprof_val = float(pos.get("current_travel_percent", 0.0))
+        pos["travel_profit_alert_class"] = get_alert_class(tprof_val, tprof_low, tprof_med, tprof_high)
+
+    # Totals
     totals_dict = calc_services.calculate_totals(updated_positions)
 
-    # 6) Render template
-    return render_template(
-        "positions.html",
-        positions=updated_positions,
-        totals=totals_dict
-    )
+    return render_template("positions.html", positions=updated_positions, totals=totals_dict)
+
 
 @app.route("/exchanges")
 def exchanges():
@@ -630,6 +740,98 @@ def update_jupiter():
 @app.route("/audio-tester")
 def audio_tester():
     return render_template("audio_tester.html")
+
+
+@app.route("/api/positions_data", methods=["GET"])
+def positions_data_api():
+    """
+    Returns JSON with fresh 'mini_prices', 'positions', and 'totals'.
+    Called after /update_jupiter to do a partial (in-browser) update.
+    """
+    data_locker = DataLocker(db_path=DB_PATH)
+    calc_services = CalcServices()
+
+    # 1) mini_prices for BTC, ETH, SOL
+    mini_prices = []
+    for asset in ["BTC", "ETH", "SOL"]:
+        row = data_locker.get_latest_price(asset)
+        if row:
+            mini_prices.append({
+                "asset_type": row["asset_type"],
+                "current_price": float(row["current_price"])
+            })
+
+    # 2) get your raw positions
+    positions_data = data_locker.read_positions()
+    # fill in current_price if missing
+    positions_data = fill_positions_with_latest_price(positions_data)
+    # aggregator logic to compute PnL, classes, etc.
+    updated_positions = calc_services.aggregator_positions(positions_data, DB_PATH)
+
+    # Possibly attach wallet info again if needed
+    for pos in updated_positions:
+        pos["collateral"] = float(pos.get("collateral") or 0.0)
+        wallet_name = pos.get("wallet_name")
+        if wallet_name:
+            w = data_locker.get_wallet_by_name(wallet_name)
+            pos["wallet_name"] = w
+        else:
+            pos["wallet_name"] = None
+
+    # Re-run your alert classification (like in /positions)
+    # You can define a local helper or replicate the code. Example:
+    config_data = load_app_config()
+    alert_dict = config_data.alert_ranges or {}
+
+    def get_alert_class(value, low, med, high):
+        if high is None:
+            high = float('inf')
+        if med is None:
+            med = float('inf')
+        if low is None:
+            low = float('-inf')
+
+        if value >= high:
+            return "alert-high"
+        elif value >= med:
+            return "alert-medium"
+        elif value >= low:
+            return "alert-low"
+        else:
+            return ""
+
+    # We'll do at least the heat_index + collateral.
+    # If you want the rest (value, size, etc.), replicate the logic similarly:
+    hi_cfg   = alert_dict.get("heat_index_ranges", {})
+    hi_low   = hi_cfg.get("low", 0.0)
+    hi_med   = hi_cfg.get("medium", 0.0)
+    hi_high  = hi_cfg.get("high", None)
+
+    coll_cfg = alert_dict.get("collateral_ranges", {})
+    coll_low   = coll_cfg.get("low", 0.0)
+    coll_med   = coll_cfg.get("medium", 0.0)
+    coll_high  = coll_cfg.get("high", None)
+
+    for pos in updated_positions:
+        # Heat index
+        heat_val = float(pos.get("heat_index", 0.0))
+        pos["heat_alert_class"] = get_alert_class(heat_val, hi_low, hi_med, hi_high)
+
+        # Collateral
+        coll_val = float(pos.get("collateral", 0.0))
+        pos["collateral_alert_class"] = get_alert_class(coll_val, coll_low, coll_med, coll_high)
+
+        # (Do the same for value, size, leverage, etc. if you want all classes updated)
+
+    # 3) compute totals
+    totals_dict = calc_services.calculate_totals(updated_positions)
+
+    # 4) Return JSON
+    return jsonify({
+        "mini_prices": mini_prices,
+        "positions": updated_positions,
+        "totals": totals_dict
+    })
 
 @app.route("/database-viewer")
 def database_viewer():

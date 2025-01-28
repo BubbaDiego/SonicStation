@@ -418,3 +418,29 @@ class CalcServices:
                 return color
         # If it exceeds all upper bounds, default to the last color or "red"
         return "red"
+
+    def get_alert_class(value: float, low_thresh: float, med_thresh: float, high_thresh: float):
+        """
+        Return a CSS class string based on numeric thresholds.
+        For example, for 'heat_index':
+          - value >= high_thresh => "alert-high"
+          - value >= med_thresh  => "alert-medium"
+          - value >= low_thresh  => "alert-low"
+          - otherwise => ""
+        """
+        # If any threshold can be None, treat it like infinite or -∞
+        if high_thresh is None:
+            high_thresh = 999999  # or float('inf')
+        if med_thresh is None:
+            med_thresh = 999999   # or float('inf')
+        if low_thresh is None:
+            low_thresh = -999999  # or float('-inf')
+
+        if value >= high_thresh:
+            return "alert-high"
+        elif value >= med_thresh:
+            return "alert-medium"
+        elif value >= low_thresh:
+            return "alert-low"
+        else:
+            return ""

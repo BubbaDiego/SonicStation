@@ -8,19 +8,24 @@ logger = logging.getLogger("HybridConfigLoader")
 class AppConfig:
     """
     A plain Python config class. Holds your 4 top-level dicts:
-    price_config, system_config, api_config, alert_ranges.
+    price_config, system_config, api_config, alert_ranges,
+    plus an optional notification_config.
     """
     def __init__(
         self,
         price_config=None,
         system_config=None,
         api_config=None,
-        alert_ranges=None
+        alert_ranges=None,
+        notification_config=None  # <-- ADDED
     ):
         self.price_config = price_config or {}
         self.system_config = system_config or {}
         self.api_config = api_config or {}
         self.alert_ranges = alert_ranges or {}
+
+        # ADDED: Keep notification config if present
+        self.notification_config = notification_config or {}
 
     def __repr__(self):
         return (
@@ -28,7 +33,9 @@ class AppConfig:
             f"price_config={self.price_config}, "
             f"system_config={self.system_config}, "
             f"api_config={self.api_config}, "
-            f"alert_ranges={self.alert_ranges})"
+            f"alert_ranges={self.alert_ranges}, "
+            f"notification_config={self.notification_config}"  # <-- ADDED
+            f")"
         )
 
 
@@ -118,7 +125,8 @@ def load_config_hybrid(json_path: str, db_conn) -> AppConfig:
             price_config=merged_data.get("price_config", {}),
             system_config=merged_data.get("system_config", {}),
             api_config=merged_data.get("api_config", {}),
-            alert_ranges=merged_data.get("alert_ranges", {})
+            alert_ranges=merged_data.get("alert_ranges", {}),
+            notification_config=merged_data.get("notification_config", {})  # <-- ADDED
         )
     except Exception as e:
         logger.error(f"Error building AppConfig: {e}")
