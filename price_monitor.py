@@ -32,7 +32,6 @@ class PriceMonitor:
         self.coinpaprika_enabled = (api_cfg.get("coinpaprika_api_enabled") == "ENABLE")
         self.binance_enabled = (api_cfg.get("binance_api_enabled") == "ENABLE")
 
-
         # 4) Parse relevant fields from config
         price_cfg = self.config.get("price_config", {})
         self.assets = price_cfg.get("assets", ["BTC", "ETH"])
@@ -46,27 +45,52 @@ class PriceMonitor:
     async def initialize_monitor(self):
         logger.info("PriceMonitor initialized with dictionary config.")
 
+
     async def update_prices(self):
+        """
+        Fetches prices from enabled APIs in parallel,
+        then averages them for each symbol, storing only one row per symbol.
+        """
         logger.info("Starting update_prices...")
 
         tasks = []
         if self.coingecko_enabled:
-            tasks.append(self._fetch_and_store_coingecko())
+            tasks.append(self._fetch_coingecko_prices())
         if self.cmc_enabled:
-            tasks.append(self._fetch_and_store_cmc())
+            tasks.append(self._fetch_cmc_prices())
         if self.coinpaprika_enabled:
-            tasks.append(self._fetch_and_store_coinpaprika())
+            tasks.append(self._fetch_coinpaprika_prices())
         if self.binance_enabled:
-            tasks.append(self._fetch_and_store_binance())
+            tasks.append(self._fetch_binance_prices())
 
         if not tasks:
             logger.warning("No API sources enabled for update_prices.")
             return
 
-        await asyncio.gather(*tasks)
+        # results_list: each item is a dict like {"BTC": 29000, "ETH": 1900}
+        results_list = await asyncio.gather(*tasks)
+
+        # Combine them into { "BTC": [p1, p2, ...], "ETH": [p3, p4, ...] }
+        aggregated = {}
+        for result_dict in results_list:
+            for sym, price_val in result_dict.items():
+                aggregated.setdefault(sym, []).append(price_val)
+
+        # Now compute the average per symbol & insert
+        for sym, price_list in aggregated.items():
+            if not price_list:
+                continue
+            avg_price = sum(price_list) / len(price_list)
+            # We'll label it "Averaged" as the source
+            self.data_locker.insert_or_update_price(sym, avg_price, "Averaged")
+
         logger.info("All price updates completed.")
 
-    async def _fetch_and_store_coingecko(self):
+
+    async def _fetch_coingecko_prices(self) -> Dict[str, float]:
+        """
+        Grab prices from Coingecko for the assets in self.assets, return as dict (no DB insert).
+        """
         slug_map = {
             "BTC": "bitcoin",
             "ETH": "ethereum",
@@ -78,23 +102,31 @@ class PriceMonitor:
             else:
                 logger.warning(f"No slug found for {sym}, skipping.")
         if not slugs:
-            return
+            return {}
 
         logger.info("Fetching Coingecko for assets: %s", slugs)
         cg_data = await fetch_current_coingecko(slugs, self.currency)
+        # cg_data e.g. {"bitcoin": 29100, "ethereum": 1900}
 
+        # Convert slug -> symbol
+        results = {}
         for slug, price in cg_data.items():
-            for k, v in slug_map.items():
-                if v.upper() == slug.upper():
-                    sym = k
+            found_sym = None
+            for s, slugval in slug_map.items():
+                if slugval.lower() == slug.lower():
+                    found_sym = s
                     break
-            else:
-                sym = slug  # fallback if not found
-            self.data_locker.insert_or_update_price(sym, price, "CoinGecko")
+            sym = found_sym if found_sym else slug  # fallback
+            results[sym] = price
 
         self.data_locker.increment_api_report_counter("CoinGecko")
+        return results
 
-    async def _fetch_and_store_coinpaprika(self):
+
+    async def _fetch_coinpaprika_prices(self) -> Dict[str, float]:
+        """
+        Grab prices from CoinPaprika, return as dict.
+        """
         logger.info("Fetching CoinPaprika for assets: ...")
         paprika_map = {
             "BTC": "btc-bitcoin",
@@ -108,30 +140,34 @@ class PriceMonitor:
             else:
                 logger.warning(f"No paprika ID found for {sym}, skipping.")
         if not ids:
-            return
+            return {}
 
-        cp_data = await fetch_current_coinpaprika(ids)
-        for sym, price in cp_data.items():
-            self.data_locker.insert_or_update_price(sym, price, "CoinPaprika")
-
+        data = await fetch_current_coinpaprika(ids)  # e.g. {"BTC": 29050, "ETH": 1905}
         self.data_locker.increment_api_report_counter("CoinPaprika")
+        return data
 
-    async def _fetch_and_store_binance(self):
+
+    async def _fetch_binance_prices(self) -> Dict[str, float]:
+        """
+        Grab prices from Binance, return as dict.
+        """
         logger.info("Fetching Binance for assets: ...")
         binance_symbols = [sym.upper() + "USDT" for sym in self.assets]
-        bn_data = await fetch_current_binance(binance_symbols)
-        for sym, price in bn_data.items():
-            self.data_locker.insert_or_update_price(sym, price, "Binance")
-
+        bn_data = await fetch_current_binance(binance_symbols)  # e.g. {"BTC": 29040, "ETH": 1898}
         self.data_locker.increment_api_report_counter("Binance")
+        return bn_data
 
-    async def _fetch_and_store_cmc(self):
+
+    async def _fetch_cmc_prices(self) -> Dict[str, float]:
+        """
+        Grab prices from CoinMarketCap, return as dict.
+        """
         logger.info("Fetching CMC for assets: %s", self.assets)
         cmc_data = await fetch_current_cmc(self.assets, self.currency, self.cmc_api_key)
-        for sym, price in cmc_data.items():
-            self.data_locker.insert_or_update_price(sym, price, "CoinMarketCap")
-
+        # e.g. {"BTC": 29045, "ETH": 1899}
         self.data_locker.increment_api_report_counter("CoinMarketCap")
+        return cmc_data
+
 
     async def update_historical_cmc(self, symbol: str, start_date: str, end_date: str):
         if not self.cmc_enabled:
@@ -157,6 +193,8 @@ class PriceMonitor:
                 r["volume"],
             )
 
+
+# Standalone usage
 if __name__ == "__main__":
     async def main():
         pm = PriceMonitor(
@@ -166,8 +204,9 @@ if __name__ == "__main__":
         await pm.initialize_monitor()
         await pm.update_prices()
 
+        # Example of historical usage:
         start_date = "2024-12-01"
         end_date = "2025-01-19"
-        await pm.update_historical_cmc("BTC", start_date, end_date)
+        # await pm.update_historical_cmc("BTC", start_date, end_date)
 
     asyncio.run(main())
