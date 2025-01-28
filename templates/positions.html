@@ -22,6 +22,17 @@
     background-color: #fff;
   }
 
+  /* Make numeric columns (3rd to 9th) in the tbody medium (500) */
+  tbody tr td:nth-child(3),
+  tbody tr td:nth-child(4),
+  tbody tr td:nth-child(5),
+  tbody tr td:nth-child(6),
+  tbody tr td:nth-child(7),
+  tbody tr td:nth-child(8),
+  tbody tr td:nth-child(9) {
+    font-weight: 500;
+  }
+
   /* Keep columns uniform with table-layout: fixed + colgroup */
   .fixed-table {
     table-layout: fixed;
@@ -79,12 +90,11 @@
     color: #666;
   }
 
-  /* Title “badge” is a round rectangle for framing */
+  /* Title “badge” is a round rectangle for framing, 50% larger than before */
   .title-badge {
     display: inline-block;
-    /* Increased size by ~50% */
-    font-size: 1.875rem; /* from 1.25rem */
-    padding: 0.75rem 1.5rem; /* from 0.5rem 1rem */
+    font-size: 1.875rem; /* was 1.25rem */
+    padding: 0.75rem 1.5rem; /* was 0.5rem 1rem */
     border-radius: 15px;
     background-color: #ffffff;
     border: 2px solid #999;
@@ -220,7 +230,7 @@
         </tr>
       </thead>
       <tbody id="positionsTableBody">
-        {% for pos in positions %}
+        {% for pos in positions|sort(attribute='size', reverse=True) %}
         <tr class="{{ pos.heat_alert_class }}">
           <td>
             {% if pos.asset_type in ["BTC","Bitcoin"] %}
@@ -291,7 +301,7 @@ document.getElementById('update-jupiter-all-btn').addEventListener('click', () =
   // 1) Call /update_jupiter to update DB (delete + fetch jupiter + update prices)
   fetch('/update_jupiter', { method: 'POST' })
     .then(response => response.json())
-    .then(data => {
+    .then(() => {
       // 2) Then fetch new mini_prices + positions from /api/positions_data
       return fetch('/api/positions_data').then(r => r.json());
     })
@@ -343,6 +353,9 @@ function updateMarketSnapshot(miniPrices) {
 
 // Table partial update
 function updatePositionsTable(positionsArr, totalsObj) {
+  // Sort positions by size: largest to smallest
+  positionsArr.sort((a, b) => b.size - a.size);
+
   // 1) Rebuild <tbody>
   const tbody = document.getElementById('positionsTableBody');
   tbody.innerHTML = '';
