@@ -33,18 +33,18 @@
     font-weight: 500;
   }
 
-  /* Keep columns uniform with table-layout: fixed + colgroup */
+  /* Keep columns uniform but remove fixed table layout for scrolling on mobile */
   .fixed-table {
-    table-layout: fixed;
     width: 100%;
     border-collapse: collapse;
   }
+  /* Reduced row padding from 8px to 5px (≈33% smaller) */
   thead th,
   tbody td,
   tfoot td {
     text-align: center;
     vertical-align: middle;
-    padding: 8px;
+    padding: 5px;
     font-size: 1.2rem;
     overflow: hidden;
   }

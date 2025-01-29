@@ -833,6 +833,10 @@ def positions_data_api():
         "totals": totals_dict
     })
 
+@app.route("/hedge-report")
+def hedge_report():
+    print("HEDGE")
+
 @app.route("/database-viewer")
 def database_viewer():
     """Displays all non-system tables + their rows for debugging."""
