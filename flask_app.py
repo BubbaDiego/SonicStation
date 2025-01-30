@@ -1,4 +1,3 @@
-
 # Space Station - 1st Node
 
 import os
@@ -36,47 +35,21 @@ from alert_manager import AlertManager
 
 
 app = Flask(__name__)
-
-#@app.route('/')
-#def hello_world():
-#    return 'Hello from Flask!'
-
-app = Flask(__name__)
-app.debug = False  # or True if you want
+app.debug = False
 logger = logging.getLogger("WebAppLogger")
 logger.setLevel(logging.DEBUG)
 app.secret_key = "i-like-lamp"
 
-# Build absolute paths for DB + config
+# Build absolute paths
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 DB_PATH = os.path.join(BASE_DIR, "mother_brain.db")
 CONFIG_PATH = os.path.join(BASE_DIR, "sonic_config.json")
 
-# Example: If your aggregator needs a mint->asset mapping:
 MINT_TO_ASSET = {
     "3NZ9JMVBmGAqocybic2c7LQCJScmgsAZ6vQqTDzcqmJh": "BTC",
     "7vfCXTUXx5WJV5JADk17DUJ4ksgau7utNKj4b963voxs": "ETH",
     "So11111111111111111111111111111111111111112": "SOL"
 }
-
-# Initialize services if you want them once at startup
-# (Otherwise, you can do lazy init in routes.)
-def initialize_services():
-    db_conn = sqlite3.connect(DB_PATH)
-    config = load_config_hybrid(CONFIG_PATH, db_conn)
-    calc_services = CalcServices()
-    manager = AlertManager(
-        db_path=DB_PATH,
-        poll_interval=60,
-        config_path=CONFIG_PATH
-    )
-    return {
-        "db_conn": db_conn,
-        "config": config,
-        "calc_services": calc_services,
-        "manager": manager
-    }
-
 
 manager = AlertManager(
     db_path=DB_PATH,
@@ -84,16 +57,13 @@ manager = AlertManager(
     config_path=CONFIG_PATH
 )
 
-
-#######################################
+##################################################
 # ROUTES
-#######################################
+##################################################
 
 @app.route("/")
 def index():
-    """Redirect to positions page."""
     return redirect(url_for("positions"))
-
 
 def get_alert_class(value, low_thresh, med_thresh, high_thresh):
     if high_thresh is None:
@@ -112,18 +82,17 @@ def get_alert_class(value, low_thresh, med_thresh, high_thresh):
     else:
         return "alert-high"
 
+
 @app.route("/positions")
 def positions():
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     calc_services = CalcServices()
 
-    # 1) Read raw positions from DB
+    # 1) raw from DB
     positions_data = data_locker.read_positions()
-
-    # 2) Fill them with newest price if missing
+    # 2) fill missing price
     positions_data = fill_positions_with_latest_price(positions_data)
-
-    # 3) Enrich each position (PnL, leverage, etc.) via aggregator
+    # 3) aggregator => updated positions
     updated_positions = calc_services.aggregator_positions(positions_data, DB_PATH)
 
     # Attach wallet info
@@ -136,11 +105,9 @@ def positions():
         else:
             pos["wallet_name"] = None
 
-    # Load config (alert_ranges)
-    config_data = load_app_config()  # or load_config_hybrid(...)
+    config_data = load_app_config()
     alert_dict = config_data.alert_ranges or {}
 
-    # Helper to classify a numeric value vs. (low/medium/high)
     def get_alert_class(value, low_thresh, med_thresh, high_thresh):
         if high_thresh is None:
             high_thresh = float('inf')
@@ -158,7 +125,6 @@ def positions():
         else:
             return ""
 
-    # Example for each sub-range:
     hi_cfg   = alert_dict.get("heat_index_ranges", {})
     hi_low   = hi_cfg.get("low", 0.0)
     hi_med   = hi_cfg.get("medium", 0.0)
@@ -199,41 +165,31 @@ def positions():
     tprof_med   = tprof_cfg.get("medium", 0.0)
     tprof_high  = tprof_cfg.get("high", None)
 
-    # Apply alert classes
     for pos in updated_positions:
-        # Heat index
         heat_val = float(pos.get("heat_index", 0.0))
         pos["heat_alert_class"] = get_alert_class(heat_val, hi_low, hi_med, hi_high)
 
-        # Collateral
         coll_val = float(pos["collateral"])
         pos["collateral_alert_class"] = get_alert_class(coll_val, coll_low, coll_med, coll_high)
 
-        # Value
         val = float(pos.get("value", 0.0))
         pos["value_alert_class"] = get_alert_class(val, val_low, val_med, val_high)
 
-        # Size
         sz = float(pos.get("size", 0.0))
         pos["size_alert_class"] = get_alert_class(sz, size_low, size_med, size_high)
 
-        # Leverage
         lev = float(pos.get("leverage", 0.0))
         pos["leverage_alert_class"] = get_alert_class(lev, lev_low, lev_med, lev_high)
 
-        # Liquidation Distance
         liqd = float(pos.get("liquidation_distance", 0.0))
         pos["liqdist_alert_class"] = get_alert_class(liqd, liqd_low, liqd_med, liqd_high)
 
-        # Travel Percent (Liquid)
         tliq_val = float(pos.get("current_travel_percent", 0.0))
         pos["travel_liquid_alert_class"] = get_alert_class(tliq_val, tliq_low, tliq_med, tliq_high)
 
-        # Travel Percent (Profit)
         tprof_val = float(pos.get("current_travel_percent", 0.0))
         pos["travel_profit_alert_class"] = get_alert_class(tprof_val, tprof_low, tprof_med, tprof_high)
 
-    # Totals
     totals_dict = calc_services.calculate_totals(updated_positions)
 
     return render_template("positions.html", positions=updated_positions, totals=totals_dict)
@@ -241,30 +197,29 @@ def positions():
 
 @app.route("/exchanges")
 def exchanges():
-    """Show the brokers list."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     brokers_data = data_locker.read_brokers()
     return render_template("exchanges.html", brokers=brokers_data)
 
+
 @app.route("/edit-position/<position_id>", methods=["POST"])
 def edit_position(position_id):
-    """Updates size/collateral for a given position."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     logger.debug(f"Editing position {position_id}.")
     try:
         size = float(request.form.get("size", 0.0))
         collateral = float(request.form.get("collateral", 0.0))
         data_locker.update_position(position_id, size, collateral)
-        data_locker.sync_calc_services()  # or sync_dependent_data(), if that’s your method name
+        data_locker.sync_calc_services()
         return redirect(url_for("positions"))
     except Exception as e:
         logger.error(f"Error updating position {position_id}: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/delete-position/<position_id>", methods=["POST"])
 def delete_position(position_id):
-    """Removes one position."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     logger.debug(f"Deleting position {position_id}")
     try:
         data_locker.cursor.execute("DELETE FROM positions WHERE id = ?", (position_id,))
@@ -274,10 +229,10 @@ def delete_position(position_id):
         logger.error(f"Error deleting position {position_id}: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/delete-all-positions", methods=["POST"])
 def delete_all_positions():
-    """Wipes out all rows in `positions` table."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     logger.debug("Deleting ALL positions")
     try:
         data_locker.delete_all_positions()
@@ -286,13 +241,10 @@ def delete_all_positions():
         logger.error(f"Error deleting all positions: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/upload-positions", methods=["POST"])
 def upload_positions():
-    """
-    Accepts a file upload with an array of positions (JSON).
-    Each pos dict can have "wallet_name" etc. We'll store them in DB.
-    """
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     try:
         if "file" not in request.files:
             return jsonify({"error": "No file part in request"}), 400
@@ -319,13 +271,10 @@ def upload_positions():
         app.logger.error(f"Error uploading positions: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/prices", methods=["GET", "POST"])
 def prices():
-    """
-    On GET: Show the 3 top prices (BTC, ETH, SOL) + recent prices + API counters.
-    On POST: Insert or update a new manual price.
-    """
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     if request.method == "POST":
         asset = request.form.get("asset", "BTC")
         raw_price = request.form.get("price", "0.0")
@@ -349,27 +298,39 @@ def prices():
         api_counters=api_counters
     )
 
+
 @app.route("/update-prices", methods=["POST"])
 def update_prices():
-    """Calls PriceMonitor.update_prices() to fetch live prices from APIs."""
+    """
+    Calls PriceMonitor.update_prices() to fetch live prices from APIs.
+    After success, sets last_update_time_prices & last_update_prices_source = "API"
+    (or user) if you pass ?source=user, for example.
+    """
+    source = request.args.get("source") or request.form.get("source") or "API"
+
     pm = PriceMonitor(db_path=DB_PATH, config_path=CONFIG_PATH)
     try:
         asyncio.run(pm.update_prices())
+
+        # We updated prices => store the last_update_time_prices + source
+        data_locker = DataLocker(db_path=DB_PATH)
+        now = datetime.now()
+        data_locker.set_last_update_times(
+            prices_dt=now,
+            prices_source=source
+        )
+
     except Exception as e:
         logger.exception(f"Error updating prices: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
     return jsonify({"status": "ok", "message": "Prices updated successfully"})
+
 
 @app.route("/alert-options", methods=["GET", "POST"])
 def alert_options():
-    """
-    Loads config from 'sonic_config.json' into AppConfig, displays in a form,
-    updates & saves it if POST.
-    """
     try:
-        # 1) Load JSON from disk
         if not os.path.exists(CONFIG_PATH):
-            # If no file, create an empty default or raise an error
             return jsonify({"error": "sonic_config.json not found"}), 404
 
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -377,7 +338,6 @@ def alert_options():
         config_data = AppConfig(**data)
 
         if request.method == "POST":
-            # 2) Parse form fields, update config_data
             new_low  = float(request.form.get("heat_index_low", 0.0))
             new_med  = float(request.form.get("heat_index_medium", 0.0))
             new_high = float(request.form.get("heat_index_high", 0.0))
@@ -385,7 +345,6 @@ def alert_options():
             config_data.alert_ranges.heat_index_ranges.medium = new_med
             config_data.alert_ranges.heat_index_ranges.high = new_high
 
-            # Save updated config back to disk
             with open(CONFIG_PATH, "w", encoding="utf-8") as f:
                 json.dump(config_data.model_dump(), f, indent=2)
 
@@ -402,12 +361,17 @@ def alert_options():
         app.logger.error(f"Error in /alert-options: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/show-updates")
+def show_updates():
+    data_locker = DataLocker(DB_PATH)
+    times = data_locker.get_last_update_times()
+    return render_template("some_template.html", update_times=times)
+
+
 @app.route("/system-options", methods=["GET", "POST"])
 def system_options():
-    """
-    Displays system options. On POST, either reset counters or save new config.
-    """
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
 
     if request.method == "POST":
         config = load_app_config()
@@ -418,23 +382,17 @@ def system_options():
             flash("API report counters have been reset!", "success")
             return redirect(url_for("system_options"))
         else:
-            # Update system config
             config.system_config.log_level = request.form.get("log_level", "INFO")
             config.system_config.db_path   = request.form.get("db_path", config.system_config.db_path)
 
-            # For assets:
             assets_str = request.form.get("assets", "")
             config.price_config.assets = [a.strip() for a in assets_str.split(",") if a.strip()]
 
-            # For currency, fetch_timeout...
             config.price_config.currency      = request.form.get("currency", "USD")
             config.price_config.fetch_timeout = int(request.form.get("fetch_timeout", 10))
 
-            # For coingecko/binance enable
             config.api_config.coingecko_api_enabled = request.form.get("coingecko_api_enabled", "ENABLE")
             config.api_config.binance_api_enabled   = request.form.get("binance_api_enabled", "ENABLE")
-
-            # For coinmarketcap key
             config.api_config.coinmarketcap_api_key = request.form.get("coinmarketcap_api_key", "")
 
             save_app_config(config)
@@ -445,9 +403,9 @@ def system_options():
     config = load_app_config()
     return render_template("system_options.html", config=config)
 
+
 @app.route("/export-config")
 def export_config():
-    """Send the sonic_config.json file to the user."""
     return send_file(
         CONFIG_PATH,
         as_attachment=True,
@@ -455,10 +413,10 @@ def export_config():
         mimetype="application/json"
     )
 
+
 @app.route("/heat", methods=["GET"])
 def heat():
-    """Show position heat data."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     calc_services = CalcServices()
 
     positions_data = data_locker.read_positions()
@@ -468,19 +426,11 @@ def heat():
     heat_data = build_heat_data(positions_data)
     return render_template("heat.html", heat_data=heat_data)
 
-@app.route("/alerts")
+
 @app.route("/alerts")
 def alerts():
-    """
-    Displays:
-    1) A Market Snapshot (mini_prices) panel (BTC, ETH, SOL) if present in DB
-    2) Three info boxes labeled Low/Medium/High based on negative travel_percent in positions
-    3) Active Alerts (left), Recent Alerts (right)
-    4) "Add New Alert" form at the bottom
-    """
     data_locker = DataLocker(DB_PATH)
 
-    # 1) Build the mini_prices list from the 'prices' table
     mini_prices = []
     for asset in ["BTC", "ETH", "SOL"]:
         row = data_locker.get_latest_price(asset)
@@ -489,18 +439,14 @@ def alerts():
                 "asset_type": row["asset_type"],
                 "current_price": float(row["current_price"])
             })
-    # If none are found, mini_prices remains empty => "No price data" in the template
 
-    # 2) Calculate Low/Med/High from positions' current_travel_percent
     positions = data_locker.read_positions()
-
-    # Load config to get the travel_percent_liquid_ranges
     config_dict = load_config(CONFIG_PATH, data_locker.get_db_connection())
     liquid_cfg = config_dict["alert_ranges"]["travel_percent_liquid_ranges"]
 
-    low_thresh   = float(liquid_cfg["low"])     # e.g. -25
-    med_thresh   = float(liquid_cfg["medium"])  # e.g. -50
-    high_thresh  = float(liquid_cfg["high"])    # e.g. -75
+    low_thresh   = float(liquid_cfg["low"])
+    med_thresh   = float(liquid_cfg["medium"])
+    high_thresh  = float(liquid_cfg["high"])
 
     low_alert_count = 0
     medium_alert_count = 0
@@ -516,7 +462,6 @@ def alerts():
             elif val <= low_thresh:
                 low_alert_count += 1
 
-    # 3) Fetch real alerts from DB and split into active vs recent
     all_alerts = data_locker.get_alerts()
     active_alerts_data = []
     recent_alerts_data = []
@@ -526,7 +471,6 @@ def alerts():
         else:
             recent_alerts_data.append(alert)
 
-    # 4) Render 'alerts.html' with real data
     return render_template(
         "alerts.html",
         mini_prices=mini_prices,
@@ -538,13 +482,12 @@ def alerts():
     )
 
 
-
 @app.route("/alerts/create", methods=["POST"])
 def alerts_create():
     alert_type = request.form.get("alert_type", "")
     asset_type = request.form.get("asset_type", "")
     trigger_value_str = request.form.get("trigger_value", "0")
-    condition = request.form.get("condition", "ABOVE")  # <--- read from form
+    condition = request.form.get("condition", "ABOVE")
 
     status = request.form.get("status", "Active")
     notification_type = request.form.get("notification_type", "SMS")
@@ -560,7 +503,7 @@ def alerts_create():
         "alert_type": alert_type,
         "asset_type": asset_type,
         "trigger_value": trigger_value,
-        "condition": condition,           # <--- add it here!
+        "condition": condition,
         "notification_type": notification_type,
         "last_triggered": None,
         "status": status,
@@ -574,26 +517,20 @@ def alerts_create():
     }
 
     data_locker = DataLocker(DB_PATH)
-    data_locker.create_alert(new_alert)  # Must include 'condition' in alert_dict
+    data_locker.create_alert(new_alert)
 
     flash("New alert created successfully!", "success")
     return redirect(url_for("alerts"))
 
+
 @app.route("/manual_check_alerts", methods=["POST"])
 def manual_check_alerts():
-    """
-    Called by the "Check Alerts" button to run manager.check_alerts() manually.
-    This calls your Travel% logic (and any others you define).
-    """
     manager.check_alerts()
     return jsonify({"status": "success", "message": "Alerts have been manually checked!"}), 200
 
+
 @app.route("/jupiter-perps-proxy", methods=["GET"])
 def jupiter_perps_proxy():
-    """
-    A simple GET route that fetches the positions JSON from Jupiter's Perps API
-    and returns it to the client.
-    """
     wallet_address = request.args.get("walletAddress", "6vMjsGU63evYuwwGsDHBRnKs1stALR7SYN5V57VZLXca")
     jupiter_url = f"https://perps-api.jup.ag/v1/positions?walletAddress={wallet_address}&showTpslRequests=true"
 
@@ -609,13 +546,10 @@ def jupiter_perps_proxy():
         app.logger.error(f"Error fetching Jupiter positions: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/update-jupiter-positions", methods=["POST"])
 def update_jupiter_positions():
-    """
-    Fetches fresh positions from Jupiter Perps API for all wallets,
-    storing them in the DB if they're new.
-    """
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     try:
         wallets_list = data_locker.read_wallets()
         if not wallets_list:
@@ -669,7 +603,6 @@ def update_jupiter_positions():
                         f"Skipping item for wallet {w['name']} due to mapping error: {map_err}"
                     )
 
-            # Minimal duplicate check
             for p in new_positions:
                 duplicate_check = data_locker.cursor.execute(
                     """
@@ -705,13 +638,14 @@ def update_jupiter_positions():
         app.logger.error(f"Error fetching Jupiter: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/delete-all-jupiter-positions", methods=["POST"])
 def delete_all_jupiter_positions():
-    """Just an example of how you might clear out data before re-import."""
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     data_locker.cursor.execute("DELETE FROM positions WHERE wallet_name IS NOT NULL")
     data_locker.conn.commit()
     return jsonify({"message": "All Jupiter positions deleted."}), 200
+
 
 @app.route("/delete-alert/<alert_id>", methods=["POST"])
 def delete_alert(alert_id):
@@ -720,22 +654,50 @@ def delete_alert(alert_id):
     flash("Alert deleted!", "success")
     return redirect(url_for("alerts"))
 
+
 @app.route("/update_jupiter", methods=["POST"])
 def update_jupiter():
     """
-    Example route that calls delete_all_positions(), then update_jupiter_positions(),
-    then update_prices().
+    1) delete_all_positions
+    2) update_jupiter_positions
+    3) update_prices
+    Then sets last_update_time_positions + last_update_time_prices,
+    plus last_update_positions_source + last_update_prices_source.
     """
-    delete_all_positions()
+    # Read 'source' or default to "API"
+    source = request.args.get("source") or request.form.get("source") or "API"
+
+    data_locker = DataLocker(DB_PATH)
+
+    # 1) Remove old positions
+    delete_all_positions()  # or data_locker.delete_all_positions()
+
+    # 2) Update from Jupiter
     jupiter_resp, jupiter_code = update_jupiter_positions()
     if jupiter_code != 200:
         return jupiter_resp, jupiter_code
 
+    # 3) Update prices
     prices_resp = update_prices()
     if prices_resp.status_code != 200:
         return prices_resp
 
-    return jsonify({"message": "Jupiter positions + Prices updated successfully!"}), 200
+    # Set the last-update timestamps & sources
+    now = datetime.now()
+    data_locker.set_last_update_times(
+        positions_dt=now,
+        positions_source=source,  # <--- store the positions source
+        prices_dt=now,
+        prices_source=source      # <--- store the prices source
+    )
+
+    return jsonify({
+        "message": f"Jupiter positions + Prices updated successfully by {source}!",
+        "source": source,
+        "last_update_time_positions": now.isoformat(),
+        "last_update_time_prices": now.isoformat()
+    }), 200
+
 
 @app.route("/audio-tester")
 def audio_tester():
@@ -744,14 +706,9 @@ def audio_tester():
 
 @app.route("/api/positions_data", methods=["GET"])
 def positions_data_api():
-    """
-    Returns JSON with fresh 'mini_prices', 'positions', and 'totals'.
-    Called after /update_jupiter to do a partial (in-browser) update.
-    """
-    data_locker = DataLocker(db_path=DB_PATH)
+    data_locker = DataLocker(DB_PATH)
     calc_services = CalcServices()
 
-    # 1) mini_prices for BTC, ETH, SOL
     mini_prices = []
     for asset in ["BTC", "ETH", "SOL"]:
         row = data_locker.get_latest_price(asset)
@@ -761,14 +718,10 @@ def positions_data_api():
                 "current_price": float(row["current_price"])
             })
 
-    # 2) get your raw positions
     positions_data = data_locker.read_positions()
-    # fill in current_price if missing
     positions_data = fill_positions_with_latest_price(positions_data)
-    # aggregator logic to compute PnL, classes, etc.
     updated_positions = calc_services.aggregator_positions(positions_data, DB_PATH)
 
-    # Possibly attach wallet info again if needed
     for pos in updated_positions:
         pos["collateral"] = float(pos.get("collateral") or 0.0)
         wallet_name = pos.get("wallet_name")
@@ -778,8 +731,6 @@ def positions_data_api():
         else:
             pos["wallet_name"] = None
 
-    # Re-run your alert classification (like in /positions)
-    # You can define a local helper or replicate the code. Example:
     config_data = load_app_config()
     alert_dict = config_data.alert_ranges or {}
 
@@ -800,8 +751,6 @@ def positions_data_api():
         else:
             return ""
 
-    # We'll do at least the heat_index + collateral.
-    # If you want the rest (value, size, etc.), replicate the logic similarly:
     hi_cfg   = alert_dict.get("heat_index_ranges", {})
     hi_low   = hi_cfg.get("low", 0.0)
     hi_med   = hi_cfg.get("medium", 0.0)
@@ -813,37 +762,31 @@ def positions_data_api():
     coll_high  = coll_cfg.get("high", None)
 
     for pos in updated_positions:
-        # Heat index
         heat_val = float(pos.get("heat_index", 0.0))
         pos["heat_alert_class"] = get_alert_class(heat_val, hi_low, hi_med, hi_high)
 
-        # Collateral
         coll_val = float(pos.get("collateral", 0.0))
         pos["collateral_alert_class"] = get_alert_class(coll_val, coll_low, coll_med, coll_high)
 
-        # (Do the same for value, size, leverage, etc. if you want all classes updated)
-
-    # 3) compute totals
     totals_dict = calc_services.calculate_totals(updated_positions)
 
-    # 4) Return JSON
     return jsonify({
         "mini_prices": mini_prices,
         "positions": updated_positions,
         "totals": totals_dict
     })
 
+
 @app.route("/hedge-report")
 def hedge_report():
-    print("HEDGE")
+    return render_template("hedge_report.html")
+
 
 @app.route("/database-viewer")
 def database_viewer():
-    """Displays all non-system tables + their rows for debugging."""
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-
     cur.execute("""
         SELECT name 
           FROM sqlite_master
@@ -865,41 +808,39 @@ def database_viewer():
     conn.close()
     return render_template("database_viewer.html", db_data=db_data)
 
+
 @app.route("/test-jupiter-perps-proxy")
 def test_jupiter_perps_proxy():
     return render_template("test_jupiter_perps.html")
+
 
 @app.route("/console-test")
 def console_test():
     return render_template("console_test.html")
 
+
 @app.route("/test-jupiter-swap", methods=["GET"])
 def test_jupiter_swap():
     return render_template("test_jupiter_swap.html")
 
-# ---------------------------------------
-# Utility functions used by routes
-# ---------------------------------------
+
+##################################################
+# Utility
+##################################################
 
 def load_app_config() -> AppConfig:
-    """Loads JSON from sonic_config.json into an AppConfig object."""
     if not os.path.exists(CONFIG_PATH):
-        return AppConfig()  # or raise an error
+        return AppConfig()
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         data = json.load(f)
     return AppConfig(**data)
 
 def save_app_config(config: AppConfig):
-    """Saves the AppConfig back to sonic_config.json."""
-    data = config.model_dump()  # For Pydantic v2
+    data = config.model_dump()
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4)
 
 def fill_positions_with_latest_price(positions: List[dict]) -> List[dict]:
-    """
-    For each position, if 'current_price' is 0 or missing,
-    look up the newest price for that asset_type from the DB.
-    """
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
@@ -923,10 +864,7 @@ def fill_positions_with_latest_price(positions: List[dict]) -> List[dict]:
     conn.close()
     return positions
 
-
-
 def _convert_iso_to_pst(iso_str):
-    """Converts an ISO datetime string to PST. Returns 'N/A' on failure."""
     if not iso_str or iso_str == "N/A":
         return "N/A"
     pst = pytz.timezone("US/Pacific")
@@ -938,15 +876,12 @@ def _convert_iso_to_pst(iso_str):
         return "N/A"
 
 def _get_top_prices_for_assets(db_path, assets=None):
-    """For each asset in `assets`, get the newest row from 'prices'."""
     if assets is None:
         assets = ["BTC", "ETH", "SOL"]
-
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     results = []
-
     for asset in assets:
         row = cur.execute("""
             SELECT asset_type, current_price, last_update_time
@@ -972,7 +907,6 @@ def _get_top_prices_for_assets(db_path, assets=None):
     return results
 
 def _get_recent_prices(db_path, limit=15):
-    """Grabs up to `limit` most recent rows from 'prices'."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
@@ -996,10 +930,6 @@ def _get_recent_prices(db_path, limit=15):
     return results
 
 def build_heat_data(positions: List[dict]) -> dict:
-    """
-    Summarizes positions by asset & side for a 'heat.html' page.
-    Example structure with BTC/ETH/SOL -> short/long plus totals.
-    """
     structure = {
        "BTC":  {"short": {}, "long": {}},
        "ETH":  {"short": {}, "long": {}},
@@ -1025,11 +955,9 @@ def build_heat_data(positions: List[dict]) -> dict:
          }
        }
     }
-
     for pos in positions:
         asset = pos.get("asset_type", "BTC").upper()
         side  = pos.get("position_type", "LONG").lower()
-
         if asset not in ["BTC", "ETH", "SOL"]:
             continue
         if side not in ["short", "long"]:
@@ -1044,7 +972,6 @@ def build_heat_data(positions: List[dict]) -> dict:
           "heat_index": float(pos.get("heat_index", 0.0)),
           "size": float(pos.get("size", 0.0))
         }
-
         structure[asset][side] = row
 
         totals_side = structure["totals"][side]
@@ -1053,10 +980,125 @@ def build_heat_data(positions: List[dict]) -> dict:
         totals_side["size"]       += row["size"]
         totals_side["travel_percent"] += row["travel_percent"]
         totals_side["heat_index"] += row["heat_index"]
-        # If you want average leverage or travel_percent, you'd do a separate calc.
 
     return structure
 
-# MAIN
+@app.route("/assets")
+def assets():
+    """
+    Lists wallets (desc by balance) and brokers (desc by total_holding),
+    side by side or stacked, each with an Add form and Delete buttons.
+    """
+    data_locker = DataLocker(DB_PATH)
+
+    # 1) Get wallets + sort descending by balance
+    wallets = data_locker.read_wallets()
+    # read_wallets() returns a list of dicts, each with "name", "balance", etc.
+    wallets.sort(key=lambda w: w["balance"], reverse=True)
+
+    # 2) Get brokers + sort descending by total_holding
+    brokers = data_locker.read_brokers()
+    # read_brokers() returns a list of dicts: "name", "total_holding", etc.
+    brokers.sort(key=lambda b: b["total_holding"], reverse=True)
+
+    return render_template("assets.html", wallets=wallets, brokers=brokers)
+
+
+@app.route("/add_wallet", methods=["POST"])
+def add_wallet():
+    """
+    Reads form fields for a new wallet, then inserts a row via data_locker.create_wallet().
+    Redirects back to /assets.
+    """
+    data_locker = DataLocker(DB_PATH)
+
+    name = request.form.get("name", "").strip()
+    public_addr = request.form.get("public_address", "").strip()
+    private_addr = request.form.get("private_address", "").strip()
+    image_path = request.form.get("image_path", "").strip()
+    balance_str = request.form.get("balance", "0.0").strip()
+
+    try:
+        balance_val = float(balance_str)
+    except ValueError:
+        balance_val = 0.0
+
+    wallet_dict = {
+        "name": name,
+        "public_address": public_addr,
+        "private_address": private_addr,
+        "image_path": image_path,
+        "balance": balance_val
+    }
+    data_locker.create_wallet(wallet_dict)
+
+    flash(f"Wallet '{name}' added!", "success")
+    return redirect(url_for("assets"))
+
+
+@app.route("/add_broker", methods=["POST"])
+def add_broker():
+    """
+    Reads form fields for a new broker, then inserts a row in 'brokers'.
+    Redirects back to /assets.
+    """
+    data_locker = DataLocker(DB_PATH)
+
+    name = request.form.get("name", "").strip()
+    image_path = request.form.get("image_path", "").strip()
+    web_address = request.form.get("web_address", "").strip()
+    holding_str = request.form.get("total_holding", "0.0").strip()
+
+    try:
+        holding_val = float(holding_str)
+    except ValueError:
+        holding_val = 0.0
+
+    broker_dict = {
+        "name": name,
+        "image_path": image_path,
+        "web_address": web_address,
+        "total_holding": holding_val
+    }
+    data_locker.create_broker(broker_dict)
+
+    flash(f"Broker '{name}' added!", "success")
+    return redirect(url_for("assets"))
+
+
+@app.route("/delete_wallet/<wallet_name>", methods=["POST"])
+def delete_wallet(wallet_name):
+    """
+    Removes the given wallet row from DB by name.
+    (If your 'wallets' table uses a different primary key, adjust accordingly.)
+    """
+    data_locker = DataLocker(DB_PATH)
+    conn = data_locker.get_db_connection()
+    cursor = conn.cursor()
+
+    # If 'name' is the PK/unique:
+    cursor.execute("DELETE FROM wallets WHERE name = ?", (wallet_name,))
+    conn.commit()
+
+    flash(f"Deleted wallet '{wallet_name}'.", "info")
+    return redirect(url_for("assets"))
+
+
+@app.route("/delete_broker/<broker_name>", methods=["POST"])
+def delete_broker(broker_name):
+    """
+    Removes the given broker row by its 'name' primary key.
+    """
+    data_locker = DataLocker(DB_PATH)
+    conn = data_locker.get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM brokers WHERE name = ?", (broker_name,))
+    conn.commit()
+
+    flash(f"Deleted broker '{broker_name}'.", "info")
+    return redirect(url_for("assets"))
+
+
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5001)

@@ -5,6 +5,7 @@
   body {
     background-color: #a9c6e8;
   }
+
   /* Table heading style */
   thead th {
     background-color: #3366cc !important;
@@ -22,7 +23,7 @@
     background-color: #fff;
   }
 
-  /* Make numeric columns (3rd to 9th) in the tbody medium (500) */
+  /* Make numeric columns (3rd..9th) a bit bolder */
   tbody tr td:nth-child(3),
   tbody tr td:nth-child(4),
   tbody tr td:nth-child(5),
@@ -33,12 +34,15 @@
     font-weight: 500;
   }
 
-  /* Keep columns uniform but remove fixed table layout for scrolling on mobile */
-  .fixed-table {
+  /* Allow horizontal scroll on mobile (no fixed table layout) */
+  .positions-table {
     width: 100%;
     border-collapse: collapse;
   }
-  /* Reduced row padding from 8px to 5px (≈33% smaller) */
+  /*
+    Row height reduced by ~33%:
+    from ~8px to 5px padding
+  */
   thead th,
   tbody td,
   tfoot td {
@@ -60,41 +64,11 @@
     background-color: #f8d7da !important;
   }
 
-  /* Jupiter button: round 50px */
-  .jupiter-btn {
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    padding: 0;
-    border: none;
-    background: none;
-    overflow: hidden;
-  }
-  .jupiter-btn img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-  /* Container for Jupiter + last update text */
-  .jupiter-container {
-    display: inline-flex;
-    align-items: center;
-    padding: 0.3rem 0.6rem;
-    border: 2px solid #ccc;
-    border-radius: 15px;
-    background-color: #ffffff;
-  }
-  .last-update-text {
-    margin-left: 0.6rem;
-    font-style: italic;
-    color: #666;
-  }
-
-  /* Title “badge” is a round rectangle for framing, 50% larger than before */
+  /* Title “badge” => "Positions" top-left corner */
   .title-badge {
     display: inline-block;
-    font-size: 1.875rem; /* was 1.25rem */
-    padding: 0.75rem 1.5rem; /* was 0.5rem 1rem */
+    font-size: 1.875rem;
+    padding: 0.75rem 1.5rem;
     border-radius: 15px;
     background-color: #ffffff;
     border: 2px solid #999;
@@ -102,7 +76,7 @@
     font-weight: bold;
   }
 
-  /* MARKET SNAPSHOT panel in the top row */
+  /* MARKET SNAPSHOT panel in the middle */
   .mini-price-panel.card {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
@@ -146,11 +120,51 @@
     font-weight: bold;
     color: #333;
   }
+
+  /*
+    Jupiter container:
+    -> smaller than before but same style
+    -> always visible
+  */
+  .jupiter-container {
+    display: inline-flex;
+    align-items: center;
+    /* Slightly smaller than 0.3/0.6 => 0.2/0.4 for less "big" look */
+    padding: 0.2rem 0.4rem;
+    /* narrower border & smaller radius => not so large */
+    border: 1px solid #ccc;
+    border-radius: 10px;
+    background-color: #ffffff;
+  }
+  /* The Jupiter button => 50x50 round as before */
+  .jupiter-btn {
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    padding: 0;
+    border: none;
+    background: none;
+    overflow: hidden;
+  }
+  .jupiter-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  /* The last update text => smaller font, new line for "Source" */
+  .last-update-text {
+    margin-left: 0.5rem;
+    font-style: italic;
+    color: #666;
+    font-size: 0.95rem;
+    line-height: 1.3;
+    /* we’ll fill this in via JS */
+  }
 </style>
 
-<!-- Top row: Title on left, Market Snapshot in center, Jupiter on right -->
+<!-- Top row: Title on left, Market Snapshot center, Jupiter container right -->
 <div class="d-flex align-items-center justify-content-between mb-3">
-  <!-- Left: Positions title in a round rectangle -->
+  <!-- Left: Title badge -->
   <div class="title-badge">
     Positions
   </div>
@@ -191,7 +205,7 @@
     </div>
   </div>
 
-  <!-- Right: Jupiter button + last update -->
+  <!-- Right: Jupiter container => always visible, smaller look -->
   <div class="jupiter-container">
     <button id="update-jupiter-all-btn" class="jupiter-btn">
       <img src="/static/images/jupiter.jpg" alt="Update Jupiter">
@@ -200,10 +214,10 @@
   </div>
 </div>
 
-<!-- Main table -->
+<!-- Main table for positions -->
 <div class="card" style="border-radius:10px;">
   <div class="card-body p-0">
-    <table class="table mb-0 fixed-table">
+    <table class="table mb-0 positions-table">
       <!-- 9 columns => each ~11.11% width -->
       <colgroup>
         <col style="width:11.11%;">
@@ -239,29 +253,31 @@
               <img src="/static/images/eth_logo.png" alt="ETH" style="width:35px; height:35px;">
             {% elif pos.asset_type in ["SOL","Solana"] %}
               <img src="/static/images/sol_logo.png" alt="SOL" style="width:35px; height:35px;">
+            {% else %}
+              <!-- fallback icon if needed -->
             {% endif %}
           </td>
           <td><b>{{ pos.position_type }}</b></td>
-          <td class="{{ pos.collateral_status }} {{ pos.collateral_alert_class }}">
+          <td class="{{ pos.collateral_alert_class }}">
             {{ "{:,.2f}".format(pos.collateral) }}
           </td>
-          <td class="{{ pos.value_status }} {{ pos.value_alert_class }}">
+          <td class="{{ pos.value_alert_class }}">
             {{ "{:,.2f}".format(pos.value) }}
           </td>
-          <td class="{{ pos.size_status }} {{ pos.size_alert_class }}">
+          <td class="{{ pos.size_alert_class }}">
             {{ "{:,.2f}".format(pos.size) }}
           </td>
           <td class="{{ pos.leverage_alert_class }}">
             {{ "{:,.2f}".format(pos.leverage) }}
           </td>
-          <td class="{{ pos.current_travel_percent_status }} {{ pos.travel_liquid_alert_class }}">
+          <td class="{{ pos.travel_liquid_alert_class }}">
             {% if pos.current_travel_percent is not none %}
               {{ "{:,.2f}".format(pos.current_travel_percent) }}%
             {% else %}
               N/A
             {% endif %}
           </td>
-          <td class="{{ pos.heat_index_status }} {{ pos.heat_alert_class }}">
+          <td class="{{ pos.heat_alert_class }}">
             {% if pos.heat_index is not none %}
               {{ "{:,.2f}".format(pos.heat_index) }}
             {% else %}
@@ -282,7 +298,6 @@
         <tr>
           <td>TOTALS</td>
           <td></td>
-          <!-- Give each totals cell an ID so we can update them -->
           <td id="footCollateral">{{ "{:,.2f}".format(totals.get("total_collateral", 0)) }}</td>
           <td id="footValue">{{ "{:,.2f}".format(totals.get("total_value", 0)) }}</td>
           <td id="footSize">{{ "{:,.2f}".format(totals.get("total_size", 0)) }}</td>
@@ -298,23 +313,23 @@
 
 <script>
 document.getElementById('update-jupiter-all-btn').addEventListener('click', () => {
-  // 1) Call /update_jupiter to update DB (delete + fetch jupiter + update prices)
-  fetch('/update_jupiter', { method: 'POST' })
+  // 1) We do a POST to /update_jupiter?source=user
+  fetch('/update_jupiter?source=user', { method: 'POST' })
     .then(response => response.json())
-    .then(() => {
-      // 2) Then fetch new mini_prices + positions from /api/positions_data
-      return fetch('/api/positions_data').then(r => r.json());
-    })
-    .then(freshData => {
-      // 3) Update last-update time
-      const now = new Date().toLocaleString();
-      document.getElementById('last-update-time').textContent = `Last update: ${now}`;
+    .then(data => {
+      // 2) Then fetch new positions from /api/positions_data
+      return fetch('/api/positions_data')
+        .then(r => r.json())
+        .then(freshData => {
+          // 3) Show the time, then a new line for "Source: X"
+          const now = new Date().toLocaleString();
+          document.getElementById('last-update-time').innerHTML =
+            `Last update: ${now}<br>Source: ${data.source}`;
 
-      // 4) Update the Market Snapshot (no reload)
-      updateMarketSnapshot(freshData.mini_prices || []);
-
-      // 5) Update table rows + totals
-      updatePositionsTable(freshData.positions || [], freshData.totals || {});
+          // 4) Optionally do partial updates for snapshot & table
+          updateMarketSnapshot(freshData.mini_prices || []);
+          updatePositionsTable(freshData.positions || [], freshData.totals || {});
+        });
     })
     .catch(err => {
       console.error("Update Jupiter error:", err);
@@ -353,16 +368,17 @@ function updateMarketSnapshot(miniPrices) {
 
 // Table partial update
 function updatePositionsTable(positionsArr, totalsObj) {
-  // Sort positions by size: largest to smallest
+  // Sort largest to smallest
   positionsArr.sort((a, b) => b.size - a.size);
 
-  // 1) Rebuild <tbody>
   const tbody = document.getElementById('positionsTableBody');
   tbody.innerHTML = '';
 
   positionsArr.forEach(pos => {
     const tr = document.createElement('tr');
-    if (pos.heat_alert_class) tr.classList.add(pos.heat_alert_class);
+    if (pos.heat_alert_class) {
+      tr.classList.add(pos.heat_alert_class);
+    }
 
     let assetLogo = '';
     if (pos.asset_type === 'BTC' || pos.asset_type === 'Bitcoin') {
@@ -376,34 +392,38 @@ function updatePositionsTable(positionsArr, totalsObj) {
     tr.innerHTML = `
       <td>${assetLogo}</td>
       <td><b>${pos.position_type}</b></td>
-      <td class="${pos.collateral_status || ''} ${pos.collateral_alert_class || ''}">
+      <td class="${pos.collateral_alert_class || ''}">
         ${Number(pos.collateral).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
       </td>
-      <td class="${pos.value_status || ''} ${pos.value_alert_class || ''}">
+      <td class="${pos.value_alert_class || ''}">
         ${Number(pos.value).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
       </td>
-      <td class="${pos.size_status || ''} ${pos.size_alert_class || ''}">
+      <td class="${pos.size_alert_class || ''}">
         ${Number(pos.size).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
       </td>
       <td class="${pos.leverage_alert_class || ''}">
         ${Number(pos.leverage).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
       </td>
-      <td class="${pos.current_travel_percent_status || ''} ${pos.travel_liquid_alert_class || ''}">
-        ${Number(pos.current_travel_percent).toFixed(2)}%
+      <td class="${pos.travel_liquid_alert_class || ''}">
+        ${pos.current_travel_percent != null
+          ? Number(pos.current_travel_percent).toFixed(2) + '%'
+          : 'N/A'}
       </td>
-      <td class="${pos.heat_index_status || ''} ${pos.heat_alert_class || ''}">
-        ${Number(pos.heat_index).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}
+      <td class="${pos.heat_alert_class || ''}">
+        ${pos.heat_index != null
+          ? Number(pos.heat_index).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })
+          : 'N/A'}
       </td>
       <td class="${pos.liqdist_alert_class || ''}">
         ${pos.liquidation_distance != null
-          ? Number(pos.liquidation_distance).toLocaleString()
+          ? Number(pos.liquidation_distance).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })
           : 'N/A'}
       </td>
     `;
     tbody.appendChild(tr);
   });
 
-  // 2) Update the totals row
+  // Update totals row
   if (totalsObj) {
     document.getElementById('footCollateral').textContent =
       Number(totalsObj.total_collateral).toLocaleString(undefined, {
