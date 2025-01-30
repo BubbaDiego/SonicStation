@@ -194,7 +194,6 @@ def positions():
 
     return render_template("positions.html", positions=updated_positions, totals=totals_dict)
 
-
 @app.route("/exchanges")
 def exchanges():
     data_locker = DataLocker(DB_PATH)

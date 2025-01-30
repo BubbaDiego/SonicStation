@@ -170,6 +170,74 @@ class DataLocker:
             f"Incremented API report counter for {api_name}, last_updated={now_str}."
         )
 
+    def get_balance_vars(self) -> dict:
+        """
+        Return a dict with the 3 columns:
+          "total_brokerage_balance",
+          "total_wallet_balance",
+          "total_balance"
+        from system_vars where id=1
+        """
+        self._init_sqlite_if_needed()
+
+        # Attempt to fetch the single system_vars row with id=1
+        row = self.cursor.execute("""
+            SELECT
+              total_brokerage_balance,
+              total_wallet_balance,
+              total_balance
+            FROM system_vars
+            WHERE id=1
+        """).fetchone()
+
+        # If row not found, return default zeros
+        if not row:
+            return {
+                "total_brokerage_balance": 0.0,
+                "total_wallet_balance": 0.0,
+                "total_balance": 0.0
+            }
+
+        # Return them as floats (in case they're None, fallback to 0.0)
+        return {
+            "total_brokerage_balance": row["total_brokerage_balance"] or 0.0,
+            "total_wallet_balance": row["total_wallet_balance"] or 0.0,
+            "total_balance": row["total_balance"] or 0.0
+        }
+
+    def set_balance_vars(
+            self,
+            brokerage_balance: float = None,
+            wallet_balance: float = None,
+            total_balance: float = None
+    ):
+        """
+        Update any of the 3 columns in system_vars (id=1).
+        Pass None if you don't want to change that field.
+        """
+        self._init_sqlite_if_needed()
+
+        # Get existing values so we can preserve anything not being updated
+        current = self.get_balance_vars()
+
+        new_brokerage = brokerage_balance if brokerage_balance is not None else current["total_brokerage_balance"]
+        new_wallet = wallet_balance if wallet_balance is not None else current["total_wallet_balance"]
+        new_total = total_balance if total_balance is not None else current["total_balance"]
+
+        self.cursor.execute("""
+            UPDATE system_vars
+               SET total_brokerage_balance=?,
+                   total_wallet_balance=?,
+                   total_balance=?
+             WHERE id=1
+        """, (new_brokerage, new_wallet, new_total))
+        self.conn.commit()
+
+        self.logger.debug(
+            f"Updated system_vars => total_brokerage_balance={new_brokerage}, "
+            f"total_wallet_balance={new_wallet}, total_balance={new_total}"
+        )
+
     def insert_price(self, price_dict: dict):
         """
         Inserts a new price row.
