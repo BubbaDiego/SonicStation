@@ -496,46 +496,27 @@ class DataLocker:
     # ----------------------------------------------------------------
 
     def insert_or_update_price(
-        self, asset_type: str, current_price: float,
-        source: str, timestamp: Optional[datetime] = None
+            self, asset_type: str, current_price: float,
+            source: str, timestamp: Optional[datetime] = None
     ):
         """
-        If row for asset_type exists => update it. Else => insert new.
+        Always insert a new prices row for each update (historical records).
         """
         self._init_sqlite_if_needed()
         if timestamp is None:
             timestamp = datetime.now()
 
-        self.cursor.execute(
-            "SELECT id FROM prices WHERE asset_type=?",
-            (asset_type,)
-        )
-        row = self.cursor.fetchone()
-        if row:
-            try:
-                self.logger.debug(f"Updating existing price row for {asset_type}")
-                self.cursor.execute("""
-                    UPDATE prices
-                       SET current_price = ?,
-                           last_update_time = ?,
-                           source = ?
-                     WHERE asset_type = ?
-                """, (current_price, timestamp.isoformat(), source, asset_type))
-                self.conn.commit()
-            except Exception as ex:
-                self.logger.error(f"Error updating price row for {asset_type}: {ex}", exc_info=True)
-        else:
-            self.logger.debug(f"No price row for {asset_type}; creating new.")
-            price_dict = {
-                "id": str(uuid4()),
-                "asset_type": asset_type,
-                "current_price": current_price,
-                "previous_price": 0.0,
-                "last_update_time": timestamp.isoformat(),
-                "previous_update_time": None,
-                "source": source
-            }
-            self.insert_price(price_dict)
+        price_dict = {
+            "id": str(uuid4()),
+            "asset_type": asset_type,
+            "current_price": current_price,
+            "previous_price": 0.0,
+            "last_update_time": timestamp.isoformat(),
+            "previous_update_time": None,
+            "source": source
+        }
+
+        self.insert_price(price_dict)  # We do a brand-new row every time now!
 
     # ----------------------------------------------------------------
     # POSITIONS

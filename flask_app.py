@@ -88,6 +88,16 @@ def positions():
     data_locker = DataLocker(DB_PATH)
     calc_services = CalcServices()
 
+    # 0) Gather mini_prices for BTC, ETH, SOL
+    mini_prices = []
+    for asset in ["BTC", "ETH", "SOL"]:
+        row = data_locker.get_latest_price(asset)
+        if row:
+            mini_prices.append({
+                "asset_type": row["asset_type"],
+                "current_price": float(row["current_price"])
+            })
+
     # 1) raw from DB
     positions_data = data_locker.read_positions()
     # 2) fill missing price
@@ -192,7 +202,12 @@ def positions():
 
     totals_dict = calc_services.calculate_totals(updated_positions)
 
-    return render_template("positions.html", positions=updated_positions, totals=totals_dict)
+    return render_template(
+        "positions.html",
+        positions=updated_positions,
+        totals=totals_dict,
+        mini_prices=mini_prices  # <--- ADDED THIS
+    )
 
 @app.route("/exchanges")
 def exchanges():
@@ -240,6 +255,12 @@ def delete_all_positions():
         logger.error(f"Error deleting all positions: {e}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
+@app.route("/delete-all-prices", methods=["POST"])
+def delete_all_prices():
+    data_locker = DataLocker(DB_PATH)
+    data_locker.cursor.execute("DELETE FROM prices")
+    data_locker.conn.commit()
+    return redirect(url_for("database_viewer"))
 
 @app.route("/upload-positions", methods=["POST"])
 def upload_positions():
@@ -1133,6 +1154,11 @@ def delete_broker(broker_name):
 
     flash(f"Deleted broker '{broker_name}'.", "info")
     return redirect(url_for("assets"))
+
+@app.route("/theme_options")
+def theme_options():
+    # Renders the new template
+    return render_template("theme_options.html")
 
 
 if __name__ == "__main__":

@@ -47,7 +47,7 @@
       }
       /* Make the hamburger icon bigger */
       .navbar .nav-link i.bi-list {
-        font-size: 1.75rem !important; /* Adjust as needed */
+        font-size: 1.75rem !important;
       }
 
       /* Sidebar background */
@@ -56,7 +56,7 @@
       }
       /* Sidebar nav links: bigger text, color, hover */
       .app-sidebar .nav-link {
-        font-size: 1.2rem; /* Make the menu items bigger */
+        font-size: 1.2rem;
         color: #06283D !important;
       }
       .app-sidebar .nav-link:hover {
@@ -80,22 +80,23 @@
     </style>
   </head>
 
-  <body class="layout-fixed sidebar-expand-lg">
+  <!-- This file is the base layout for child templates. -->
+  <body class="layout-fixed">
     <div class="app-wrapper">
-      <!-- Header with only a hamburger icon (no "Home" or other menu items) -->
+      <!-- Header (top navbar) -->
       <nav class="app-header navbar navbar-expand">
         <div class="container-fluid">
           <ul class="navbar-nav">
             <li class="nav-item">
-              <a class="nav-link" data-lte-toggle="sidebar" href="#" role="button">
+              <!-- No Jinja toggles here -->
+              <a class="nav-link" href="#" role="button">
                 <i class="bi bi-list"></i>
               </a>
             </li>
           </ul>
-
-          <!-- Right side (User menu, etc.) - if needed -->
+          <!-- Right side (User menu, etc.) if needed -->
           <ul class="navbar-nav ms-auto">
-            <!-- Put user menu items here if you like -->
+            <!-- user/account icons here if you like -->
           </ul>
         </div>
       </nav>
@@ -115,12 +116,7 @@
         </div>
         <div class="sidebar-wrapper">
           <nav class="mt-2">
-            <ul
-              class="nav sidebar-menu flex-column"
-              data-lte-toggle="treeview"
-              role="menu"
-              data-accordion="false"
-            >
+            <ul class="nav sidebar-menu flex-column" role="menu">
               <li class="nav-item">
                 <a href="{{ url_for('positions') }}" class="nav-link">
                   <i class="nav-icon bi bi-briefcase-fill"></i>
@@ -128,15 +124,13 @@
                 </a>
               </li>
 
-              <!-- NEW Hedge Report Menu Item -->
+              <!-- Example Items -->
               <li class="nav-item">
                 <a href="{{ url_for('hedge_report') }}" class="nav-link">
                   <i class="nav-icon bi bi-shield-check"></i>
                   <p>Hedge Report</p>
                 </a>
               </li>
-              <!-- End Hedge Report Menu Item -->
-
               <li class="nav-item">
                 <a href="{{ url_for('prices') }}" class="nav-link">
                   <i class="nav-icon bi bi-currency-bitcoin"></i>
@@ -149,15 +143,12 @@
                   <p>Heat</p>
                 </a>
               </li>
-
-              <!-- REPLACED "Exchanges" with "Assets" -->
               <li class="nav-item">
                 <a href="{{ url_for('assets') }}" class="nav-link">
                   <i class="nav-icon bi bi-bell"></i>
                   <p>Assets</p>
                 </a>
               </li>
-
               <li class="nav-item">
                 <a href="{{ url_for('alerts') }}" class="nav-link">
                   <i class="nav-icon bi bi-bell"></i>
@@ -176,6 +167,15 @@
                   <p>Database Viewer</p>
                 </a>
               </li>
+
+              <!-- Theme Menu Item (example) -->
+              <li class="nav-item">
+                <a href="{{ url_for('theme_options') }}" class="nav-link">
+                  <i class="nav-icon bi bi-palette-fill"></i>
+                  <p>Theme</p>
+                </a>
+              </li>
+
             </ul>
           </nav>
         </div>
@@ -186,13 +186,13 @@
       <main class="app-main">
         <div class="app-content-header">
           <div class="container-fluid">
-            <!-- Optional page title here -->
+            <!-- optional: page title, breadcrumb, etc. -->
           </div>
         </div>
         <div class="app-content">
           <div class="container-fluid">
             {% block content %}
-            <!-- Child templates will override this block -->
+            <!-- Child templates override this block. -->
             {% endblock content %}
           </div>
         </div>
@@ -213,7 +213,7 @@
       <!-- End Footer -->
     </div>
 
-    <!-- Required JavaScript -->
+    <!-- Required JS -->
     <script
       src="https://cdn.jsdelivr.net/npm/overlaysscrollbars@2.10.1/browser/overlaysscrollbars.browser.es6.min.js"
     ></script>
