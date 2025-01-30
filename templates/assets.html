@@ -2,14 +2,33 @@
 {% block content %}
 
 <style>
-  /* Same general style as before but more compact */
+  /* Reuse the same box style from your "prices" page */
+  .price-box.card {
+    background-color: #F0F0F0 !important;
+    border: 2px solid #ccc;
+    border-radius: 8px;
+  }
+  .price-box .card-header {
+    background-color: #e5ffe5 !important;
+    font-weight: bold;
+    text-align: center;
+  }
+  .price-box .display-4 {
+    font-size: 2.5rem; /* Big font for numeric value */
+  }
+
+  /* For the middle box "Total Balance" to stand out */
+  .highlighted-balance {
+    background-color: #ffe5e5 !important; /* light red/pink highlight */
+  }
+
+  /* Main assets cards (brokers & wallets) */
   .assets-card {
     background-color: #F0F0F0 !important;
     border: 2px solid #ccc;
     border-radius: 8px;
-    margin-bottom: 1rem; /* Reduce vertical spacing */
+    margin-bottom: 1rem; /* reduce spacing */
   }
-  /* Title row style: light purple background, bold text */
   .assets-table thead tr.title-row {
     background-color: #f0e5ff !important;
     font-weight: bold;
@@ -17,7 +36,6 @@
   .assets-table.table-striped tbody tr:nth-of-type(odd) {
     background-color: rgba(0, 0, 0, 0.05);
   }
-  /* Subheading bar for "Add New" forms */
   .subheading {
     background-color: #e5ffe5 !important;
     font-weight: bold;
@@ -26,9 +44,55 @@
   }
 </style>
 
-<!-- Top Title -->
+<!-- TITLE -->
 <h2 class="text-dark mb-4">Assets</h2>
 
+<!-- ====== TOP 3 BOXES (Brokerage, Total, Wallet) ====== -->
+<div class="row row-cols-1 row-cols-md-3 g-4 mb-3">
+
+  <!-- Box 1 => Total Brokerage Balance -->
+  <div class="col">
+    <div class="card price-box h-100">
+      <div class="card-header">Total Brokerage Balance</div>
+      <div class="card-body text-center">
+        <div class="display-4 mb-2">
+          <!-- Format with comma separators -->
+          {{ "{:,.2f}".format(total_brokerage_balance) }}
+        </div>
+        <small class="text-muted">(From system_vars)</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Box 2 => Total Balance (highlighted) -->
+  <div class="col">
+    <div class="card price-box h-100 highlighted-balance">
+      <div class="card-header">Total Balance</div>
+      <div class="card-body text-center">
+        <div class="display-4 mb-2">
+          {{ "{:,.2f}".format(total_balance) }}
+        </div>
+        <small class="text-muted">(From system_vars)</small>
+      </div>
+    </div>
+  </div>
+
+  <!-- Box 3 => Total Wallet Balance -->
+  <div class="col">
+    <div class="card price-box h-100">
+      <div class="card-header">Total Wallet Balance</div>
+      <div class="card-body text-center">
+        <div class="display-4 mb-2">
+          {{ "{:,.2f}".format(total_wallet_balance) }}
+        </div>
+        <small class="text-muted">(From system_vars)</small>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- / top 3 boxes row -->
+
+<!-- ====== 2-COLUMN LAYOUT: BROKERS (left), WALLETS (right) ====== -->
 <div class="row g-2">
   <!-- LEFT COLUMN: Brokers -->
   <div class="col-md-6">
@@ -36,11 +100,9 @@
       <div class="card-body p-2">
         <table class="table table-striped w-100 mb-0 assets-table">
           <thead>
-            <!-- Title row -->
             <tr class="title-row">
               <th colspan="5">Brokers</th>
             </tr>
-            <!-- Column headers -->
             <tr>
               <th>Name</th>
               <th>Web Address</th>
@@ -73,18 +135,13 @@
                 {% endif %}
               </td>
               <td>
-                <!-- Delete form => calls /delete_broker/<name> -->
                 <form
                   method="POST"
                   action="{{ url_for('delete_broker', broker_name=b.name) }}"
                   style="display:inline;"
-                  onsubmit="return confirm('Delete broker {{b.name}}?');">
-                  <button
-                    type="submit"
-                    class="btn btn-sm btn-danger"
-                  >
-                    Delete
-                  </button>
+                  onsubmit="return confirm('Delete broker {{b.name}}?');"
+                >
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                 </form>
               </td>
             </tr>
@@ -128,11 +185,9 @@
       <div class="card-body p-2">
         <table class="table table-striped w-100 mb-0 assets-table">
           <thead>
-            <!-- Title row -->
             <tr class="title-row">
               <th colspan="5">Wallets</th>
             </tr>
-            <!-- Column headers -->
             <tr>
               <th>Name</th>
               <th>Public Address</th>
@@ -159,19 +214,13 @@
                 {% endif %}
               </td>
               <td>
-                <!-- Delete form => calls /delete_wallet/<wallet_name> -->
                 <form
                   method="POST"
                   action="{{ url_for('delete_wallet', wallet_name=w.name) }}"
                   style="display:inline;"
                   onsubmit="return confirm('Delete wallet {{w.name}}?');"
                 >
-                  <button
-                    type="submit"
-                    class="btn btn-sm btn-danger"
-                  >
-                    Delete
-                  </button>
+                  <button type="submit" class="btn btn-sm btn-danger">Delete</button>
                 </form>
               </td>
             </tr>

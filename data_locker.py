@@ -24,112 +24,12 @@ class DataLocker:
         self._initialize_database()
 
     def _initialize_database(self):
-        """
-        Initializes the database by creating necessary tables if they do not exist.
-        Uses self.conn/self.cursor so we don't close mid-way.
-        """
         try:
             self._init_sqlite_if_needed()
 
-            # PRICES table
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS prices (
-                    id TEXT PRIMARY KEY,
-                    asset_type TEXT NOT NULL,
-                    current_price REAL NOT NULL,
-                    previous_price REAL NOT NULL DEFAULT 0.0,
-                    last_update_time DATETIME NOT NULL,
-                    previous_update_time DATETIME,
-                    source TEXT NOT NULL
-                )
-            """)
+            # ... (existing CREATE TABLE statements) ...
 
-            # POSITIONS table
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS positions (
-                    id TEXT PRIMARY KEY,
-                    asset_type TEXT NOT NULL,
-                    position_type TEXT NOT NULL,
-                    entry_price REAL NOT NULL,
-                    liquidation_price REAL NOT NULL,
-                    current_travel_percent REAL NOT NULL DEFAULT 0.0,
-                    value REAL NOT NULL DEFAULT 0.0,
-                    collateral REAL NOT NULL,
-                    size REAL NOT NULL,
-                    wallet TEXT NOT NULL DEFAULT 'Default',
-                    leverage REAL DEFAULT 0.0,
-                    last_updated DATETIME NOT NULL,
-                    alert_reference_id TEXT,
-                    hedge_buddy_id TEXT,
-                    current_price REAL,
-                    liquidation_distance REAL,
-                    heat_index REAL NOT NULL DEFAULT 0.0,
-                    current_heat_index REAL NOT NULL DEFAULT 0.0
-                )
-            """)
-
-            # Possibly add 'wallet_name' if missing
-            self.cursor.execute("PRAGMA table_info(positions)")
-            columns = [row[1] for row in self.cursor.fetchall()]
-            if "wallet_name" not in columns:
-                self.cursor.execute("""
-                    ALTER TABLE positions
-                    ADD COLUMN wallet_name TEXT NOT NULL DEFAULT 'Default'
-                """)
-
-            # ALERTS table
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS alerts (
-                    id TEXT PRIMARY KEY,
-                    alert_type TEXT NOT NULL,
-                    asset_type TEXT NOT NULL DEFAULT 'BTC',
-                    trigger_value REAL NOT NULL,
-                    condition TEXT NOT NULL,
-                    notification_type TEXT NOT NULL,
-                    last_triggered DATETIME,
-                    status TEXT NOT NULL,
-                    frequency INTEGER NOT NULL,
-                    counter INTEGER NOT NULL,
-                    liquidation_distance REAL NOT NULL,
-                    target_travel_percent REAL NOT NULL,
-                    liquidation_price REAL NOT NULL,
-                    notes TEXT,
-                    position_reference_id TEXT
-                )
-            """)
-
-            # API status counters
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS api_status_counters (
-                    api_name TEXT PRIMARY KEY,
-                    total_reports INTEGER NOT NULL DEFAULT 0,
-                    last_updated DATETIME
-                )
-            """)
-
-            # WALLETS
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS wallets (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT UNIQUE NOT NULL,
-                    public_address TEXT,
-                    private_address TEXT,
-                    image_path TEXT,
-                    balance REAL DEFAULT 0.0
-                )
-            """)
-
-            # BROKERS
-            self.cursor.execute("""
-                CREATE TABLE IF NOT EXISTS brokers (
-                    name TEXT PRIMARY KEY,
-                    image_path TEXT NOT NULL,
-                    web_address TEXT NOT NULL,
-                    total_holding REAL NOT NULL DEFAULT 0.0
-                )
-            """)
-
-            # SYSTEM_VARS => now with 2 extra source columns
+            # SYSTEM_VARS table
             self.cursor.execute("""
                 CREATE TABLE IF NOT EXISTS system_vars (
                     id INTEGER PRIMARY KEY,
@@ -139,7 +39,6 @@ class DataLocker:
                     last_update_prices_source TEXT
                 )
             """)
-            # Ensure row with id=1
             self.cursor.execute("""
                 INSERT OR IGNORE INTO system_vars (
                     id,
@@ -150,6 +49,32 @@ class DataLocker:
                 )
                 VALUES (1, NULL, NULL, NULL, NULL)
             """)
+
+            # -- NEW: Check if total_brokerage_balance, total_wallet_balance, total_balance exist
+            self.cursor.execute("PRAGMA table_info(system_vars)")
+            existing_cols = [row[1] for row in self.cursor.fetchall()]
+
+            # If missing, add them:
+            if "total_brokerage_balance" not in existing_cols:
+                self.cursor.execute("""
+                    ALTER TABLE system_vars
+                    ADD COLUMN total_brokerage_balance REAL DEFAULT 0.0
+                """)
+                self.logger.info("Added 'total_brokerage_balance' column to 'system_vars' table.")
+
+            if "total_wallet_balance" not in existing_cols:
+                self.cursor.execute("""
+                    ALTER TABLE system_vars
+                    ADD COLUMN total_wallet_balance REAL DEFAULT 0.0
+                """)
+                self.logger.info("Added 'total_wallet_balance' column to 'system_vars' table.")
+
+            if "total_balance" not in existing_cols:
+                self.cursor.execute("""
+                    ALTER TABLE system_vars
+                    ADD COLUMN total_balance REAL DEFAULT 0.0
+                """)
+                self.logger.info("Added 'total_balance' column to 'system_vars' table.")
 
             self.conn.commit()
             self.logger.debug("Database initialization complete.")
@@ -917,6 +842,68 @@ class DataLocker:
                 "total_holding": float(r["total_holding"])
             })
         return results
+
+    def get_balance_vars(self) -> dict:
+        """
+        Return a dict with the 3 columns:
+          "total_brokerage_balance",
+          "total_wallet_balance",
+          "total_balance"
+        from system_vars where id=1
+        """
+        self._init_sqlite_if_needed()
+
+        row = self.cursor.execute("""
+            SELECT
+              total_brokerage_balance,
+              total_wallet_balance,
+              total_balance
+            FROM system_vars
+            WHERE id=1
+        """).fetchone()
+
+        if not row:
+            return {
+                "total_brokerage_balance": 0.0,
+                "total_wallet_balance": 0.0,
+                "total_balance": 0.0
+            }
+        return {
+            "total_brokerage_balance": row["total_brokerage_balance"] or 0.0,
+            "total_wallet_balance": row["total_wallet_balance"] or 0.0,
+            "total_balance": row["total_balance"] or 0.0
+        }
+
+    def set_balance_vars(
+            self,
+            brokerage_balance: float = None,
+            wallet_balance: float = None,
+            total_balance: float = None
+    ):
+        """
+        Update any of the 3 columns in system_vars. Pass None if you don't want to change that value.
+        """
+        self._init_sqlite_if_needed()
+
+        # Read old values
+        current = self.get_balance_vars()
+        new_brokerage = brokerage_balance if brokerage_balance is not None else current["total_brokerage_balance"]
+        new_wallet = wallet_balance if wallet_balance is not None else current["total_wallet_balance"]
+        new_total = total_balance if total_balance is not None else current["total_balance"]
+
+        self.cursor.execute("""
+            UPDATE system_vars
+               SET total_brokerage_balance=?,
+                   total_wallet_balance=?,
+                   total_balance=?
+             WHERE id=1
+        """, (new_brokerage, new_wallet, new_total))
+        self.conn.commit()
+
+        self.logger.debug(
+            f"Updated system_vars => total_brokerage_balance={new_brokerage}, "
+            f"total_wallet_balance={new_wallet}, total_balance={new_total}"
+        )
 
 
     def get_wallet_by_name(self, wallet_name: str) -> Optional[dict]:

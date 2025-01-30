@@ -548,8 +548,15 @@ def jupiter_perps_proxy():
 
 
 @app.route("/update-jupiter-positions", methods=["POST"])
+@app.route("/update_jupiter_positions", methods=["POST"])
 def update_jupiter_positions():
-    data_locker = DataLocker(DB_PATH)
+    """
+    Fetches all positions from Jupiter,
+    inserts them if new,
+    then sums *ALL* positions in the DB for the 'brokerage' value,
+    and updates system_vars accordingly.
+    """
+    data_locker = DataLocker(db_path=DB_PATH)
     try:
         wallets_list = data_locker.read_wallets()
         if not wallets_list:
@@ -557,6 +564,8 @@ def update_jupiter_positions():
             return jsonify({"message": "No wallets found in DB"}), 200
 
         total_positions_imported = 0
+
+        # 1) For each wallet, fetch Jupiter positions
         for w in wallets_list:
             public_addr = w.get("public_address", "").strip()
             if not public_addr:
@@ -576,13 +585,14 @@ def update_jupiter_positions():
                 app.logger.info(f"No positions for wallet {w['name']} ({public_addr}).")
                 continue
 
+            # 2) Build position dicts
             new_positions = []
             for item in data_list:
                 try:
                     epoch_time = float(item.get("updatedTime", 0))
                     updated_dt = datetime.fromtimestamp(epoch_time)
                     mint = item.get("marketMint", "")
-                    asset_type = MINT_TO_ASSET.get(mint, "BTC")
+                    asset_type = MINT_TO_ASSET.get(mint, "BTC")  # default to BTC if unknown
                     side = item.get("side", "short").capitalize()
 
                     pos_dict = {
@@ -595,7 +605,7 @@ def update_jupiter_positions():
                         "leverage": float(item.get("leverage", 0.0)),
                         "value": float(item.get("value", 0.0)),
                         "last_updated": updated_dt.isoformat(),
-                        "wallet_name": w["name"],
+                        "wallet_name": w["name"],  # link it to the wallet
                     }
                     new_positions.append(pos_dict)
                 except Exception as map_err:
@@ -603,36 +613,55 @@ def update_jupiter_positions():
                         f"Skipping item for wallet {w['name']} due to mapping error: {map_err}"
                     )
 
+            # 3) Insert if not duplicate
             for p in new_positions:
-                duplicate_check = data_locker.cursor.execute(
-                    """
-                    SELECT COUNT(*)
-                      FROM positions
+                dup_count = data_locker.cursor.execute("""
+                    SELECT COUNT(*) FROM positions
                      WHERE wallet_name = ?
                        AND asset_type = ?
                        AND position_type = ?
                        AND ABS(size - ?) < 0.000001
                        AND ABS(collateral - ?) < 0.000001
                        AND last_updated = ?
-                    """,
-                    (
-                        p["wallet_name"],
-                        p["asset_type"],
-                        p["position_type"],
-                        p["size"],
-                        p["collateral"],
-                        p["last_updated"],
-                    )
-                ).fetchone()
-                if duplicate_check[0] == 0:
+                """, (
+                    p["wallet_name"],
+                    p["asset_type"],
+                    p["position_type"],
+                    p["size"],
+                    p["collateral"],
+                    p["last_updated"]
+                )).fetchone()
+
+                if dup_count[0] == 0:
                     data_locker.create_position(p)
                     total_positions_imported += 1
                 else:
                     app.logger.info(f"Skipping duplicate Jupiter position {p}")
 
-        return jsonify({
-            "message": f"Imported {total_positions_imported} new position(s) from Jupiter."
-        }), 200
+        # 4) Since all positions in the DB are from Jupiter,
+        #    sum the 'value' of ALL positions in 'positions' for total_brokerage_balance.
+        all_positions = data_locker.get_positions()  # read ALL from the DB
+        total_brokerage_value = sum(pos["value"] for pos in all_positions)
+
+        # 5) Read the existing wallet balance from system_vars
+        balance_vars = data_locker.get_balance_vars()
+        old_wallet_balance = balance_vars["total_wallet_balance"]  # or 0.0 if none
+
+        # 6) total_balance => sum of total_brokerage_balance + total_wallet_balance
+        new_total_balance = old_wallet_balance + total_brokerage_value
+
+        # 7) Save them in system_vars
+        data_locker.set_balance_vars(
+            brokerage_balance=total_brokerage_value,
+            total_balance=new_total_balance
+        )
+
+        msg = (f"Imported {total_positions_imported} new Jupiter position(s). "
+               f"BrokerageBalance={total_brokerage_value:.2f}, "
+               f"TotalBalance={new_total_balance:.2f}")
+        app.logger.info(msg)
+
+        return jsonify({"message": msg}), 200
 
     except requests.exceptions.RequestException as e:
         app.logger.error(f"Error fetching Jupiter: {e}", exc_info=True)
@@ -984,24 +1013,31 @@ def build_heat_data(positions: List[dict]) -> dict:
     return structure
 
 @app.route("/assets")
+@app.route("/assets")
 def assets():
-    """
-    Lists wallets (desc by balance) and brokers (desc by total_holding),
-    side by side or stacked, each with an Add form and Delete buttons.
-    """
     data_locker = DataLocker(DB_PATH)
 
-    # 1) Get wallets + sort descending by balance
-    wallets = data_locker.read_wallets()
-    # read_wallets() returns a list of dicts, each with "name", "balance", etc.
-    wallets.sort(key=lambda w: w["balance"], reverse=True)
-
-    # 2) Get brokers + sort descending by total_holding
+    # 1) Read brokers & sort descending
     brokers = data_locker.read_brokers()
-    # read_brokers() returns a list of dicts: "name", "total_holding", etc.
     brokers.sort(key=lambda b: b["total_holding"], reverse=True)
 
-    return render_template("assets.html", wallets=wallets, brokers=brokers)
+    # 2) Read wallets & sort descending
+    wallets = data_locker.read_wallets()
+    wallets.sort(key=lambda w: w["balance"], reverse=True)
+
+    # 3) Read new system_vars balances
+    balance_dict = data_locker.get_balance_vars()  # e.g. {"total_brokerage_balance":..., "total_wallet_balance":..., "total_balance":...}
+
+    # If you need to do any calculations or merges, do it here
+
+    return render_template(
+        "assets.html",
+        brokers=brokers,
+        wallets=wallets,
+        total_brokerage_balance=balance_dict["total_brokerage_balance"],
+        total_balance=balance_dict["total_balance"],
+        total_wallet_balance=balance_dict["total_wallet_balance"]
+    )
 
 
 @app.route("/add_wallet", methods=["POST"])
